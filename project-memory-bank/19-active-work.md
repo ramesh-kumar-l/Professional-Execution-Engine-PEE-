@@ -4,23 +4,23 @@
 
 ## Current phase / epic / feature / task
 
-- **Phase:** 0 — Foundation (EOS bootstrap) — **complete**.
-- **Epic:** Bootstrap the PEE Engineering Operating System — **complete**.
-- **Feature / Task:** None active. Awaiting user direction to scope Phase 1.
+- **Phase:** 0.5 — Architecture ADRs — **complete**.
+- **Epic:** Resolve backend/database/infrastructure/auth/AI-provider decisions before Phase 1. **Complete.**
+- **Feature / Task:** None active. Awaiting user direction to scope Phase 1 (Authentication).
 - **Subtask:** n/a.
 
 ## Completion percentage
 
-EOS bootstrap: 13/13 groups complete (100%). Overall project (Phase 0-10): Phase 0 done, Phases 1-10 not started.
+EOS bootstrap (Phase 0): 13/13 groups complete (100%). Architecture ADRs (Phase 0.5): 5/5 complete (100%). Overall project (Phase 0-10): Phase 0 and 0.5 done, Phases 1-10 not started.
 
 ## Known blockers
 
-None. Backend/DB/infra stack choice is an open decision (not a blocker) to resolve via ADR when Phase 1 scoping begins.
+None. The stack Phase 1 needs (TypeScript/NestJS, Postgres+SQLite, Docker/GitHub Actions, Auth.js+JWT, Claude/OpenAI abstraction) is decided — see `adr/0002`-`adr/0006` and [03-system-architecture.md](03-system-architecture.md).
 
 ## Upcoming work
 
-Scope Phase 1 (Authentication): write the PRD entry ([02-prd.md](02-prd.md)), resolve the architecture/stack ADRs referenced in [20-known-issues.md](20-known-issues.md), then begin implementation via `/implement-feature` or `/backend-workflow`.
+Scope Phase 1 (Authentication): write the PRD entry ([02-prd.md](02-prd.md)), then implement the `auth` NestJS module and Auth.js frontend integration per [adr/0005](../adr/0005-authentication-strategy.md), via `/implement-feature` or `/backend-workflow`.
 
 ## Estimated next milestone
 
-First Phase-0-resolution ADR (backend/DB/infra stack choice), then first Phase 1 feature.
+First Phase 1 feature (Authentication) scoped and implemented against the now-resolved architecture.

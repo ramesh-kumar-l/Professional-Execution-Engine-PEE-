@@ -1,6 +1,13 @@
 # 10 — Database Design
 
-Source of truth for principles: `SYSTEM_PROMPT.md` §39 (`System_Prompt/Part3.md`). Concrete database technology: TBD, see [04-technology-stack.md](04-technology-stack.md).
+Source of truth for principles: `SYSTEM_PROMPT.md` §39 (`System_Prompt/Part3.md`). Concrete database technology: PostgreSQL (server) + SQLite (local client store) + Prisma ORM — see [04-technology-stack.md](04-technology-stack.md) and [adr/0003](../adr/0003-database-and-local-first-storage.md).
+
+## Binding conventions (from adr/0003, apply to every table from Phase 1 onward)
+
+- Primary keys are client-generated UUIDs, not auto-increment integers.
+- Every syncable table has an `updated_at` column and a version/revision column.
+
+These exist so offline sync (Local-First, Principle 2) can be added later without a schema migration that touches every existing row.
 
 ## Governing principles (apply regardless of which database is chosen)
 
@@ -16,4 +23,4 @@ Source of truth for principles: `SYSTEM_PROMPT.md` §39 (`System_Prompt/Part3.md
 
 ## Status
 
-**TBD — no schema exists yet.** Will be populated once the database technology is chosen via ADR and Phase 0/1 entities are defined in a PRD ([02-prd.md](02-prd.md)).
+**Technology chosen; no schema exists yet.** Will be populated once Phase 0/1 entities are defined in a PRD ([02-prd.md](02-prd.md)).

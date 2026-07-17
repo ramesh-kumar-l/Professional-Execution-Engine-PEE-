@@ -6,7 +6,7 @@ Source of truth: `SYSTEM_PROMPT.md` §22 (`System_Prompt/Part2.md`). Each phase 
 
 | Phase | Name | Status |
 |---|---|---|
-| 0 | Foundation | **In progress** — Engineering Operating System bootstrap (this repo's current work) |
+| 0 | Foundation | **In progress** — EOS bootstrap complete; architecture ADRs (0.5) resolved 2026-07-17; awaiting scope for Phase 1 |
 | 1 | Authentication | Not started |
 | 2 | Projects | Not started |
 | 3 | Planning Engine | Not started |
@@ -18,9 +18,9 @@ Source of truth: `SYSTEM_PROMPT.md` §22 (`System_Prompt/Part2.md`). Each phase 
 | 9 | Mobile | Not started |
 | 10 | Enterprise | Not started |
 
-## Current sub-phase: EOS bootstrap groups
+## Current sub-phase: architecture ADRs resolved
 
-Phase 0 itself is being built incrementally per `C:\Users\Ramesh\.claude\plans\iterative-hugging-wren.md` (Group 0-12: skeleton, runtime docs, memory bank, ADRs, playbooks, commands, templates, checklists, design system, standards, session mgmt, dashboard, evaluation). See [17-phase-status.md](17-phase-status.md) for exact current group.
+Phase 0's EOS bootstrap (Group 0-12, per `C:\Users\Ramesh\.claude\plans\iterative-hugging-wren.md`) completed 2026-07-16. Phase 0.5 — the backend/database/infrastructure/auth/AI-provider ADRs required before any product code — completed 2026-07-17 (`adr/0002`-`adr/0006`). See [17-phase-status.md](17-phase-status.md) for exact current state and [03-system-architecture.md](03-system-architecture.md) for the resolved architecture.
 
 ## Dependency order (§76)
 

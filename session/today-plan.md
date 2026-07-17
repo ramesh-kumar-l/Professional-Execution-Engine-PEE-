@@ -3,3 +3,7 @@
 ## 2026-07-16
 
 Complete the remaining EOS bootstrap groups (10-12: session management, dashboard, evaluation + docs navigation guide), then produce a consolidated summary of what's implemented and what's pending, per the user's explicit request to continue through the next phase and report at the end.
+
+## 2026-07-17
+
+Resolve Phase 0.5 — the backend/database/infrastructure/auth/AI-provider architecture ADRs deliberately deferred during EOS bootstrap — so Phase 1 (Authentication) is unblocked, then update the memory bank and report a consolidated summary.

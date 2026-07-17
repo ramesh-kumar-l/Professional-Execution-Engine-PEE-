@@ -4,7 +4,11 @@ Source of truth: `SYSTEM_PROMPT.md` §5 (Principle 3: AI Native), §57 (AI Syste
 
 ## Status
 
-**TBD — no AI subsystem implemented yet.** Per the phase roadmap ([16-roadmap.md](16-roadmap.md)), dedicated AI Integration is Phase 6, though the AI-Native principle applies to design decisions from Phase 0 onward (intelligence must be assumed throughout the stack, not bolted on later).
+**Provider abstraction decided (Phase 0.5, [adr/0006](../adr/0006-ai-llm-provider-abstraction.md)); no AI subsystem implemented yet.** Per the phase roadmap ([16-roadmap.md](16-roadmap.md)), dedicated AI Integration is Phase 6, though the AI-Native principle applies to design decisions from Phase 0 onward (intelligence must be assumed throughout the stack, not bolted on later).
+
+## Resolved: provider abstraction shape
+
+A first-party `AIProvider` interface lives in a dedicated `ai` Nest module (see `03-system-architecture.md`). Anthropic Claude is the first implementation; OpenAI is the second, added specifically to prove the interface generalizes before any feature depends on provider-specific behavior. Feature code never calls a vendor SDK directly. Full rationale: [adr/0006](../adr/0006-ai-llm-provider-abstraction.md).
 
 ## Governing rules for whenever AI features are designed
 

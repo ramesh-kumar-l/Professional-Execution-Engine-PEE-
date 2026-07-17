@@ -6,6 +6,11 @@ Full ADRs live in `adr/` (one file per decision, template at `adr/0000-template.
 
 | ADR | Title | Status |
 |---|---|---|
-| 0001 | Adopt the Engineering Operating System | Planned (Group 3) |
+| 0001 | Adopt the Engineering Operating System | Accepted |
+| 0002 | Backend Language and Service Boundaries | Accepted |
+| 0003 | Database and Local-First Storage | Accepted |
+| 0004 | Infrastructure and Hosting | Accepted |
+| 0005 | Authentication Strategy | Accepted |
+| 0006 | AI/LLM Provider Abstraction | Accepted |
 
 Update this table whenever a new ADR is added or an existing one's status changes (proposed / accepted / superseded / deprecated). For the reasoning behind smaller, non-architectural decisions, see [21-decision-log.md](21-decision-log.md) instead.

@@ -16,3 +16,9 @@
 - Group 12: `evaluation/ai-feature-quality-bar.md` + full `docs/README.md` navigation guide
 
 EOS bootstrap (Phase 0) complete: all 13 groups delivered.
+
+## 2026-07-17
+
+- Phase 0.5: five architecture ADRs (`adr/0002`-`adr/0006`) — backend language/framework, database/local-first storage, infrastructure/hosting, authentication strategy, AI/LLM provider abstraction.
+- Updated `project-memory-bank/03-system-architecture.md`, `04-technology-stack.md`, `09-ai-architecture.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `20-known-issues.md`, `21-decision-log.md`, `22-architecture-decisions.md`, `docs/standards/ci-cd.md` to reflect resolved decisions.
+- Updated save-state files (`17-19`, `28-29`) and dashboard/session trackers to reflect Phase 0.5 completion.

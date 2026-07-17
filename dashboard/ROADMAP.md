@@ -5,7 +5,8 @@ Full detail: `project-memory-bank/16-roadmap.md`.
 | Phase | Name | Status |
 |---|---|---|
 | 0 | Foundation (EOS bootstrap) | Complete — all 13 groups delivered |
-| 1 | Authentication | Not started |
+| 0.5 | Architecture ADRs (backend/DB/infra/auth/AI) | Complete — `adr/0002`-`adr/0006` |
+| 1 | Authentication | Not started — unblocked, ready to scope |
 | 2 | Projects | Not started |
 | 3 | Planning Engine | Not started |
 | 4 | Execution Engine | Not started |
