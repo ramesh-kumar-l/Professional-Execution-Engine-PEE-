@@ -1,0 +1,156 @@
+import { NotFoundException } from '@nestjs/common';
+import { PrismaService } from '@pee/database';
+import { ProjectsService } from '@pee/projects';
+import { GoalsService } from '../src/goals/goals.service';
+
+describe('GoalsService', () => {
+  let prisma: jest.Mocked<any>;
+  let projectsService: jest.Mocked<any>;
+  let service: GoalsService;
+
+  const ownerId = 'owner-1';
+  const projectId = 'proj-1';
+  const goal = {
+    id: 'goal-1',
+    projectId,
+    ownerId,
+    title: 'Ship v2',
+    description: 'Relaunch the product',
+    status: 'NOT_STARTED',
+    targetDate: null,
+    completedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00Z'),
+    updatedAt: new Date('2026-01-01T00:00:00Z'),
+    version: 1,
+  };
+
+  beforeEach(() => {
+    prisma = {
+      goal: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
+      task: { count: jest.fn().mockResolvedValue(0) },
+    };
+    projectsService = { getOne: jest.fn().mockResolvedValue({ id: projectId, ownerId }) };
+    service = new GoalsService(prisma as unknown as PrismaService, projectsService as unknown as ProjectsService);
+  });
+
+  describe('create', () => {
+    it('verifies the project is owned by the caller before creating a goal', async () => {
+      prisma.goal.create.mockResolvedValue(goal);
+      await service.create(ownerId, projectId, { title: goal.title, description: goal.description });
+      expect(projectsService.getOne).toHaveBeenCalledWith(ownerId, projectId);
+      expect(prisma.goal.create).toHaveBeenCalledWith({
+        data: { projectId, ownerId, title: goal.title, description: goal.description, targetDate: undefined },
+      });
+    });
+
+    it('propagates 404 when the project is not owned by the caller', async () => {
+      projectsService.getOne.mockRejectedValue(new NotFoundException('Project not found'));
+      await expect(service.create(ownerId, projectId, { title: goal.title })).rejects.toThrow(NotFoundException);
+      expect(prisma.goal.create).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('list', () => {
+    it('excludes archived goals by default', async () => {
+      prisma.goal.findMany.mockResolvedValue([goal]);
+      prisma.goal.count.mockResolvedValue(1);
+
+      const result = await service.list(ownerId, projectId, {});
+
+      expect(prisma.goal.findMany).toHaveBeenCalledWith({
+        where: { projectId, ownerId, status: { not: 'ARCHIVED' } },
+        orderBy: { createdAt: 'desc' },
+        skip: 0,
+        take: 20,
+      });
+      expect(result.data).toHaveLength(1);
+    });
+  });
+
+  describe('getOne', () => {
+    it('returns the goal with computed progress when owned by the caller', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.task.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+
+      const result = await service.getOne(ownerId, goal.id);
+
+      expect(result.progress).toEqual({ totalTasks: 4, doneTasks: 2, percentComplete: 50 });
+    });
+
+    it('throws NotFoundException when the goal belongs to someone else', async () => {
+      prisma.goal.findUnique.mockResolvedValue({ ...goal, ownerId: 'someone-else' });
+      await expect(service.getOne(ownerId, goal.id)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update', () => {
+    it('sets completedAt when status transitions to COMPLETED', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.goal.update.mockResolvedValue({ ...goal, status: 'COMPLETED' });
+
+      await service.update(ownerId, goal.id, { status: 'COMPLETED' });
+
+      expect(prisma.goal.update).toHaveBeenCalledWith({
+        where: { id: goal.id },
+        data: { status: 'COMPLETED', completedAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('archive', () => {
+    it('is idempotent when already archived', async () => {
+      prisma.goal.findUnique.mockResolvedValue({ ...goal, status: 'ARCHIVED' });
+      await service.archive(ownerId, goal.id);
+      expect(prisma.goal.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('recalculateProgress', () => {
+    it('does nothing when the goal has no tasks', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.task.count.mockResolvedValue(0);
+      await service.recalculateProgress(goal.id);
+      expect(prisma.goal.update).not.toHaveBeenCalled();
+    });
+
+    it('never auto-transitions an archived goal', async () => {
+      prisma.goal.findUnique.mockResolvedValue({ ...goal, status: 'ARCHIVED' });
+      await service.recalculateProgress(goal.id);
+      expect(prisma.task.count).not.toHaveBeenCalled();
+      expect(prisma.goal.update).not.toHaveBeenCalled();
+    });
+
+    it('moves to IN_PROGRESS when some but not all tasks are done', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.task.count.mockResolvedValueOnce(4).mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+      await service.recalculateProgress(goal.id);
+
+      expect(prisma.goal.update).toHaveBeenCalledWith({
+        where: { id: goal.id },
+        data: { status: 'IN_PROGRESS', completedAt: null },
+      });
+    });
+
+    it('moves to COMPLETED when all tasks are done', async () => {
+      prisma.goal.findUnique.mockResolvedValue({ ...goal, status: 'IN_PROGRESS' });
+      prisma.task.count.mockResolvedValueOnce(3).mockResolvedValueOnce(3);
+
+      await service.recalculateProgress(goal.id);
+
+      expect(prisma.goal.update).toHaveBeenCalledWith({
+        where: { id: goal.id },
+        data: { status: 'COMPLETED', completedAt: expect.any(Date) },
+      });
+    });
+
+    it('does not update when the target status matches the current status', async () => {
+      prisma.goal.findUnique.mockResolvedValue({ ...goal, status: 'NOT_STARTED' });
+      prisma.task.count.mockResolvedValueOnce(2).mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+
+      await service.recalculateProgress(goal.id);
+
+      expect(prisma.goal.update).not.toHaveBeenCalled();
+    });
+  });
+});

@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 2 (Projects) written and implemented, 2026-07-18.**
+**Status: Phase 3 (Planning Engine) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -49,6 +49,31 @@
   - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
   - [ ] No initial Prisma migration generated yet — requires Docker (see Migration requirements above)
   - [ ] Multi-user project sharing, templates, tags — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 3 — Planning Engine
+
+- **Objective:** Let a user decompose a project `Goal` into an ordered set of `Task`s (the plan) and have the goal's status/progress track task completion automatically — closing the loop from plan to execution outcome without a manual step.
+- **Current state:** Only `Project` existed as a domain entity; no way to break work down into actionable steps or track completion.
+- **Desired state:** `Goal` (nested under a `Project`) and `Task` (nested under a `Goal`) entities, both single-owner like `Project`; task status changes roll up into the parent goal's `status` and a computed `progress` automatically.
+- **Required APIs:** `POST/GET /projects/:projectId/goals`, `GET/PATCH/DELETE /goals/:id`, `POST/GET /goals/:goalId/tasks`, `GET/PATCH/DELETE /tasks/:id` — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** New `Goal` and `Task` tables (`GoalStatus` enum `NOT_STARTED`/`IN_PROGRESS`/`COMPLETED`/`ARCHIVED`; `TaskStatus` enum `TODO`/`IN_PROGRESS`/`DONE`/`ARCHIVED`) — see [10-database-design.md](10-database-design.md).
+- **UI impact:** `/dashboard/projects/[id]/goals` (list), `/dashboard/projects/[id]/goals/new` (create), `/dashboard/goals/[id]` (detail — progress, task list, inline task creation, mark-done/archive), `/dashboard/goals/[id]/edit`.
+- **AI impact:** None (AI-assisted plan generation is a Phase 6 concern, deferred to backlog).
+- **Testing strategy:** Unit (`GoalsService`/`TasksService`, mocked Prisma + mocked collaborator service) + DTO validation, integration/e2e (Supertest against a real Postgres, asserting the rollup behavior end-to-end), frontend unit (Vitest+RTL for `GoalForm`/`TaskForm`) and Playwright e2e for the full goal/task/completion flow.
+- **Migration requirements:** Adds `Goal`/`Task` to the existing Prisma schema; no migration file has been generated yet — same unresolved Docker-dependent gap carried forward from Phases 1-2 (see [20-known-issues.md](20-known-issues.md)).
+- **Observability impact:** None new — goal/task actions are not audit-logged, same carried-forward gap as `Project`.
+- **Security considerations:** Every route requires a valid access JWT (`JwtAuthGuard`); ownership enforced directly on `Goal`/`Task` (`ownerId`, 404-not-403); goal creation additionally re-verifies the parent project's ownership via the already-exported `ProjectsService.getOne` (no `ProjectsService` internals were changed) — see [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `21-decision-log.md`, `27-backlog.md`.
+- **Acceptance criteria:**
+  - [x] Create/list/get/update/archive endpoints implemented for both `Goal` and `Task`
+  - [x] Ownership enforcement (404 on cross-user access) implemented on both entities
+  - [x] Closed-loop progress rollup: task status changes automatically recalculate goal `status` and `progress`
+  - [x] Unit + DTO tests passing (31 in `@pee/planning`, plus 2 new frontend Vitest specs)
+  - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new file stays under ~300 lines (largest is `goals.service.ts` at 151 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-2)
+  - [ ] Task dependencies/scheduling, AI-assisted plan generation, multi-user goal collaboration — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

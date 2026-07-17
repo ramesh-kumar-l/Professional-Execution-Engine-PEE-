@@ -13,7 +13,7 @@ import type {
  * and Server Actions — never imported into a Client Component, so the
  * internal API URL and raw tokens never reach the browser (BFF pattern).
  */
-const baseUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001';
+export const baseUrl = process.env.INTERNAL_API_URL ?? 'http://localhost:3001';
 
 export async function loginRequest(
   email: string,
@@ -62,7 +62,7 @@ export async function logoutRequest(refreshToken: string): Promise<void> {
   }).catch(() => undefined);
 }
 
-function authHeaders(accessToken: string): Record<string, string> {
+export function authHeaders(accessToken: string): Record<string, string> {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` };
 }
 

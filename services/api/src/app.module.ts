@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from '@pee/auth';
 import { PrismaModule } from '@pee/database';
+import { PlanningModule } from '@pee/planning';
 import { ProjectsModule } from '@pee/projects';
 import { HealthController } from './health.controller';
 
@@ -14,6 +15,7 @@ import { HealthController } from './health.controller';
     PrismaModule,
     AuthModule,
     ProjectsModule,
+    PlanningModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

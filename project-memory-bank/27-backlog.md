@@ -57,6 +57,27 @@ Priority: Medium.
 Potential dependencies: None blocking; could reuse the `AuthAuditLog` table shape or a new generic `AuditLog` table.
 Estimated value: Traceability for support/compliance once real users' data is at stake.
 
+### Task dependencies and scheduling
+Description: Let tasks declare dependencies on other tasks (blocking/blocked-by), due dates, and reminders/notifications.
+Reason: Out of scope for Phase 3's exit criteria ("goal to plan decomposition, execution loop closed"); this is squarely the Phase 4 (Execution Engine) concern.
+Priority: Medium.
+Potential dependencies: A notifications service for reminders.
+Estimated value: Turns a flat task list into a real schedulable plan.
+
+### AI-assisted plan generation
+Description: Given a goal, have an AI provider suggest a decomposed task list.
+Reason: Requires the `AIProvider` abstraction, which doesn't exist until Phase 6 (AI Integration).
+Priority: Medium.
+Potential dependencies: Phase 6's `AIProvider` interface (`adr/0006`).
+Estimated value: Reduces manual planning effort significantly.
+
+### Multi-user goal/task collaboration
+Description: Let more than one user see/edit goals and tasks within a shared project.
+Reason: Out of scope for Phase 3 MVP; single-owner (`ownerId`) model mirrors `Project`'s and is sufficient until a real collaborative feature needs it — same reasoning as the existing multi-user project sharing entry.
+Priority: Medium.
+Potential dependencies: Same permissions/roles model gap noted for multi-user project sharing.
+Estimated value: Needed once teams (not just individuals) use the product.
+
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.
 Reason: Deliberately not force-upgraded mid-Phase-1 to avoid pulling in untested majors without dedicated regression testing. See [20-known-issues.md](20-known-issues.md), [21-decision-log.md](21-decision-log.md).

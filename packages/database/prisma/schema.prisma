@@ -24,6 +24,20 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  ARCHIVED
+}
+
 // Client-generated UUID primary keys + updatedAt/version columns on every
 // syncable table, per adr/0003 (keeps offline sync possible later without
 // a schema rewrite).
@@ -39,6 +53,8 @@ model User {
   refreshTokens RefreshToken[]
   auditLogs     AuthAuditLog[]
   projects      Project[]
+  goals         Goal[]
+  tasks         Task[]
 
   @@map("users")
 }
@@ -87,7 +103,49 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   version     Int           @default(1)
+  goals       Goal[]
 
   @@index([ownerId])
   @@map("projects")
+}
+
+model Goal {
+  id          String     @id @default(uuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      GoalStatus @default(NOT_STARTED)
+  targetDate  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  version     Int        @default(1)
+  tasks       Task[]
+
+  @@index([projectId])
+  @@index([ownerId])
+  @@map("goals")
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  goalId      String
+  goal        Goal       @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus @default(TODO)
+  order       Int        @default(0)
+  completedAt DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  version     Int        @default(1)
+
+  @@index([goalId])
+  @@index([ownerId])
+  @@map("tasks")
 }

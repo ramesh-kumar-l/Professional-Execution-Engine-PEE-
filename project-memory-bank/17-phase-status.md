@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 2 — Projects. Complete (2026-07-18).**
+**Phase 3 — Planning Engine. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), and Phase 1 (Authentication) are complete. Phase 2 — the first domain-entity feature — is implemented: `services/projects` (NestJS module, ownership-scoped CRUD on `Project`), `packages/database` (`Project` table added), `packages/types` (project DTOs added), `apps/web` (project list/create/edit pages). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), and Phase 2 (Projects) are complete. Phase 3 — the second domain-entity feature — is implemented: `services/planning` (NestJS module, `Goal` nested under `Project`, `Task` nested under `Goal`, closed-loop progress rollup), `packages/database` (`Goal`/`Task` tables added), `packages/types` (goal/task DTOs added), `apps/web` (goal list/create/detail/edit pages, inline task management). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -66,8 +66,24 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), and Phase 1 (Authenticat
 | `npm run build` / `typecheck` / `lint` clean | Done |
 | Memory-bank documentation sweep | Done |
 
+## Phase 3 — Planning Engine
+
+| Deliverable | Status |
+|---|---|
+| `Goal`/`Task` models added to `packages/database` (Prisma) | Done |
+| Shared goal/task types (`packages/types`) | Done |
+| `services/planning` (goal/task CRUD, nested ownership, closed-loop progress rollup) | Done |
+| `services/api` wiring (`PlanningModule` imported) | Done |
+| `apps/web` (goal list/create/detail/edit pages, inline task management, linked from project detail) | Done |
+| Unit + DTO tests (31, passing) | Done |
+| Frontend unit tests (Vitest+RTL, 2 new specs, 10 total including prior phases, passing) | Done |
+| Integration/e2e tests (Docker Postgres required) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Every new file under ~300 lines | Done (largest: `goals.service.ts`, 151 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, and 2 are done. **Phase 3 — Planning Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, and 3 are done. **Phase 4 — Execution Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

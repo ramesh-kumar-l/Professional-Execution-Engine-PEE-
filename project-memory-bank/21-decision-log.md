@@ -111,3 +111,22 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Building a general-purpose audit trail now, before any second domain entity exists to validate its shape, would be speculative. Tracked in [20-known-issues.md](20-known-issues.md) and [27-backlog.md](27-backlog.md) rather than silently skipped.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md). **Phase:** 2.
+
+## 2026-07-18 — Phase 3 implementation-level decisions
+
+**Decision (Goal/Task nesting model, no separate "Plan" entity):** `Goal` nests under `Project`; `Task` nests under `Goal` and *is* the decomposition/plan — there's no separate `Plan` table between them.
+**Alternatives considered:** A distinct `Plan` entity owning the tasks, with `Goal` 1:1 to `Plan`.
+**Reason:** A third entity would add a layer with no independent identity or behavior — "the plan" is just the goal's ordered task list. Two entities (Goal, Task) satisfy "goal to plan decomposition" without an unjustified extra table (Sustainable Complexity, Principle 8).
+
+**Decision (closed-loop auto-rollup, not a manual field):** `TasksService` calls `GoalsService.recalculateProgress(goalId)` after every mutation that can change task counts (create, status update, archive); a goal's `status`/`progress` are never something a client sets directly to reflect task completion.
+**Alternatives considered:** Let clients PATCH a goal's `status` manually to `COMPLETED`; compute progress on read only, with no stored status transition.
+**Reason:** The exit criteria explicitly asked for the "execution loop closed" — task execution state must propagate to the goal without a manual step, or the loop isn't actually closed. Archived goals are excluded from auto-rollup (a manual terminal state the rollup never overrides).
+
+**Decision (reuse `ProjectsService.getOne`, don't widen `ProjectsService`'s internals):** Goal creation verifies project ownership via the already-public `ProjectsService.getOne(ownerId, projectId)`, imported through `ProjectsModule`. `ProjectsService.findOwnedOrThrow` stays private and untouched.
+**Alternatives considered:** Make `findOwnedOrThrow` public, or add a new `assertOwned` method to `ProjectsService`.
+**Reason:** Reuse-before-Extend — the already-exported method does exactly what's needed (ownership check + 404), so no change to tested Phase 2 code was justified. Also respects the modular-monolith rule that a module's data access is only reached through its own public service API, never a raw Prisma reach-through.
+
+**Decision (ownerId denormalized on Goal and Task, not just reachable via join):** Both entities carry their own `ownerId`, checked directly rather than derived by joining up to `Project`.
+**Reason:** Matches `Project`'s existing pattern; keeps every ownership check an O(1) `findUnique`, and each entity's authorization doesn't depend on its parent's row still existing in a particular shape.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 3.

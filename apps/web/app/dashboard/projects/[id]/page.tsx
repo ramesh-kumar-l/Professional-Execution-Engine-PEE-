@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { ProjectForm } from '@/components/ProjectForm';
@@ -18,6 +19,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   return (
     <main className="mx-auto flex max-w-sm flex-col gap-4 p-8">
       <h1 className="text-2xl font-semibold">Edit project</h1>
+      <Link href={`/dashboard/projects/${project.id}/goals`}>Goals</Link>
       <ProjectForm
         action={updateProjectAction.bind(null, project.id)}
         defaultName={project.name}

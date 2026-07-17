@@ -23,7 +23,7 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 ## Status
 
-**Phase 2 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma`).
+**Phase 3 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma`).
 
 ## Current tables
 
@@ -31,7 +31,9 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 - **`RefreshToken`** (`refresh_tokens`) — `id` (uuid), `userId` (FK, cascade delete), `tokenHash` (unique, SHA-256 of the opaque raw token — the raw value is never stored), `issuedAt`, `expiresAt`, `revokedAt` (nullable), `replacedByTokenId` (nullable self-relation, rotation chain), `updatedAt`, `version`.
 - **`AuthAuditLog`** (`auth_audit_logs`) — `id` (uuid), `userId` (nullable FK, set-null on delete), `eventType` (enum: `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`, `TOKEN_REFRESH`, `TOKEN_REUSE_DETECTED`), `ipAddress`, `userAgent`, `createdAt`, `updatedAt`, `version`.
 - **`Project`** (`projects`) — `id` (uuid), `ownerId` (FK to `User`, cascade delete), `name`, `description` (nullable), `status` (enum `ProjectStatus`: `ACTIVE`/`ARCHIVED`, default `ACTIVE`), `archivedAt` (nullable, set when archived), `createdAt`, `updatedAt`, `version`. Indexed on `ownerId`. `DELETE /projects/:id` sets `status = ARCHIVED` + `archivedAt` rather than removing the row (soft delete).
+- **`Goal`** (`goals`) — `id` (uuid), `projectId` (FK to `Project`, cascade delete), `ownerId` (FK to `User`, cascade delete), `title`, `description` (nullable), `status` (enum `GoalStatus`: `NOT_STARTED`/`IN_PROGRESS`/`COMPLETED`/`ARCHIVED`, default `NOT_STARTED`), `targetDate` (nullable), `completedAt` (nullable, set when status becomes `COMPLETED`), `createdAt`, `updatedAt`, `version`. Indexed on `projectId` and `ownerId`. `status`/`completedAt` are driven automatically by `GoalsService.recalculateProgress` based on child `Task` completion (see [08-backend-guidelines.md](08-backend-guidelines.md)) as well as settable manually via `PATCH`.
+- **`Task`** (`tasks`) — `id` (uuid), `goalId` (FK to `Goal`, cascade delete), `ownerId` (FK to `User`, cascade delete), `title`, `description` (nullable), `status` (enum `TaskStatus`: `TODO`/`IN_PROGRESS`/`DONE`/`ARCHIVED`, default `TODO`), `order` (int, default 0, decomposition ordering within a goal), `completedAt` (nullable, set when status becomes `DONE`), `createdAt`, `updatedAt`, `version`. Indexed on `goalId` and `ownerId`. `DELETE /tasks/:id` sets `status = ARCHIVED` (soft delete).
 
-All four follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`).
+All six follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`). `Goal`/`Task` denormalize `ownerId` directly (rather than only reachable via a join through `Project`/`Goal`) so ownership checks stay O(1), matching `Project`'s existing pattern.
 
-**No migration files exist yet** (`packages/database/prisma/migrations/` has never been generated) — `prisma migrate dev` requires a live database to diff against, and no Docker/Postgres has been available in the authoring sandbox for either Phase 1 or Phase 2. Once Docker is available: `npx prisma migrate dev --name init --schema packages/database/prisma/schema.prisma` (creates the first migration, covering all four tables at once), then `prisma migrate deploy` for CI/prod (see `.github/workflows/ci.yml`, which currently has nothing to deploy until this migration exists). Tracked in [20-known-issues.md](20-known-issues.md).
+**No migration files exist yet** (`packages/database/prisma/migrations/` has never been generated) — `prisma migrate dev` requires a live database to diff against, and no Docker/Postgres has been available in the authoring sandbox for Phases 1-3. Once Docker is available: `npx prisma migrate dev --name init --schema packages/database/prisma/schema.prisma` (creates the first migration, covering all six tables at once), then `prisma migrate deploy` for CI/prod (see `.github/workflows/ci.yml`, which currently has nothing to deploy until this migration exists). Tracked in [20-known-issues.md](20-known-issues.md).

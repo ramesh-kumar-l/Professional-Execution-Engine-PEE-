@@ -66,6 +66,9 @@ jobs:
       - name: Projects service e2e tests
         run: npm run test:e2e -w @pee/projects
 
+      - name: Planning service e2e tests
+        run: npm run test:e2e -w @pee/planning
+
       - name: Build
         run: npm run build
 

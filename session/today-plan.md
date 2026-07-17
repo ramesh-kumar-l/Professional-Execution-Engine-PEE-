@@ -15,3 +15,7 @@ Implement Phase 1 (Authentication) end-to-end against the resolved architecture:
 ## 2026-07-18 — Phase 2
 
 Implement Phase 2 (Projects) against the Phase 1 auth foundation: `Project` model in `packages/database`, project types in `packages/types`, `services/projects` NestJS module (ownership-scoped CRUD), `services/api` wiring, `apps/web` project list/create/edit pages, backend + frontend tests, then update the memory bank and report a consolidated summary.
+
+## 2026-07-18 (continued) — Phase 3
+
+Implement Phase 3 (Planning Engine) against the Phase 1 (auth) + Phase 2 (projects) foundation: `Goal`/`Task` models in `packages/database`, goal/task types in `packages/types`, `services/planning` NestJS module (nested ownership, closed-loop progress rollup), `services/api` wiring, `apps/web` goal/task pages, backend + frontend tests, then update the memory bank and report a consolidated summary.

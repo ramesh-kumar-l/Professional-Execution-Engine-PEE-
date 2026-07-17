@@ -12,7 +12,7 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 2 endpoints live, 2026-07-18.**
+**Phase 3 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
@@ -36,6 +36,23 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 | DELETE | `/projects/:id` | access token (Bearer) | Soft-delete (sets `status = ARCHIVED`), 204, idempotent. |
 
 All `/projects` routes are `JwtAuthGuard`-protected — there are no anonymous project routes. Ownership is enforced in `ProjectsService`, not at the route level.
+
+## Current endpoints (`/services/planning`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/projects/:projectId/goals` | access token (Bearer) | Creates a goal under a project; 404 if the project isn't owned by the caller. |
+| GET | `/projects/:projectId/goals` | access token (Bearer) | Paginated. `?status=NOT_STARTED\|IN_PROGRESS\|COMPLETED\|ARCHIVED` (default: everything except `ARCHIVED`), `?search=` (title, case-insensitive contains). |
+| GET | `/goals/:id` | access token (Bearer) | Returns the goal with a computed `progress: { totalTasks, doneTasks, percentComplete }`. 404 if missing or not owned. |
+| PATCH | `/goals/:id` | access token (Bearer) | Partial update (`title`/`description`/`targetDate`/`status`); same 404 rule. |
+| DELETE | `/goals/:id` | access token (Bearer) | Soft-delete (`status = ARCHIVED`), 204, idempotent. |
+| POST | `/goals/:goalId/tasks` | access token (Bearer) | Creates a task under a goal; 404 if the goal isn't owned by the caller. |
+| GET | `/goals/:goalId/tasks` | access token (Bearer) | Paginated, ordered by `order` then `createdAt`. `?status=TODO\|IN_PROGRESS\|DONE\|ARCHIVED` (default: everything except `ARCHIVED`). |
+| GET | `/tasks/:id` | access token (Bearer) | 404 if missing or not owned. |
+| PATCH | `/tasks/:id` | access token (Bearer) | Partial update (`title`/`description`/`status`/`order`); a `status` change triggers the parent goal's progress recalculation. |
+| DELETE | `/tasks/:id` | access token (Bearer) | Soft-delete (`status = ARCHIVED`), 204, idempotent; also triggers the parent goal's progress recalculation. |
+
+All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop behavior:** every task mutation that can change status counts (create, status update, archive) recalculates the parent goal's `status` and `progress` — a client never has to call a separate "recompute" endpoint; reading a goal always reflects current task state.
 
 ## Token custody (BFF pattern)
 
