@@ -6,8 +6,8 @@ Source of truth: `SYSTEM_PROMPT.md` §22 (`System_Prompt/Part2.md`). Each phase 
 
 | Phase | Name | Status |
 |---|---|---|
-| 0 | Foundation | **In progress** — EOS bootstrap complete; architecture ADRs (0.5) resolved 2026-07-17; awaiting scope for Phase 1 |
-| 1 | Authentication | Not started |
+| 0 | Foundation | Complete — EOS bootstrap + architecture ADRs (0.5) |
+| 1 | Authentication | **Complete** — 2026-07-17, `auth` NestJS module + Auth.js frontend |
 | 2 | Projects | Not started |
 | 3 | Planning Engine | Not started |
 | 4 | Execution Engine | Not started |
@@ -18,9 +18,9 @@ Source of truth: `SYSTEM_PROMPT.md` §22 (`System_Prompt/Part2.md`). Each phase 
 | 9 | Mobile | Not started |
 | 10 | Enterprise | Not started |
 
-## Current sub-phase: architecture ADRs resolved
+## Current sub-phase: Phase 1 implemented
 
-Phase 0's EOS bootstrap (Group 0-12, per `C:\Users\Ramesh\.claude\plans\iterative-hugging-wren.md`) completed 2026-07-16. Phase 0.5 — the backend/database/infrastructure/auth/AI-provider ADRs required before any product code — completed 2026-07-17 (`adr/0002`-`adr/0006`). See [17-phase-status.md](17-phase-status.md) for exact current state and [03-system-architecture.md](03-system-architecture.md) for the resolved architecture.
+Phase 0's EOS bootstrap and Phase 0.5's architecture ADRs completed 2026-07-16/17. Phase 1 — Authentication — implemented 2026-07-17: `services/auth` (NestJS module), `services/api` (composition root), `packages/database` + `packages/types`, `apps/web` (Next.js + Auth.js). See [17-phase-status.md](17-phase-status.md), [02-prd.md](02-prd.md) for exit criteria and acceptance status, and [18-current-state.md](18-current-state.md) for what's implemented.
 
 ## Dependency order (§76)
 

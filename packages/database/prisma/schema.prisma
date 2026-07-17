@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+}
+
+enum AuthEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  LOGOUT
+  TOKEN_REFRESH
+  TOKEN_REUSE_DETECTED
+}
+
+// Client-generated UUID primary keys + updatedAt/version columns on every
+// syncable table, per adr/0003 (keeps offline sync possible later without
+// a schema rewrite).
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  passwordHash  String
+  displayName   String
+  role          UserRole       @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  version       Int            @default(1)
+  refreshTokens RefreshToken[]
+  auditLogs     AuthAuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash         String        @unique
+  issuedAt          DateTime      @default(now())
+  expiresAt         DateTime
+  revokedAt         DateTime?
+  replacedByTokenId String?       @unique
+  replacedByToken   RefreshToken? @relation("TokenRotation", fields: [replacedByTokenId], references: [id])
+  previousToken     RefreshToken? @relation("TokenRotation")
+  updatedAt         DateTime      @updatedAt
+  version           Int           @default(1)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model AuthAuditLog {
+  id        String        @id @default(uuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventType AuthEventType
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  version   Int           @default(1)
+
+  @@index([userId])
+  @@map("auth_audit_logs")
+}

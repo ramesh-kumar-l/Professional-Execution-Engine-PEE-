@@ -12,4 +12,21 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**TBD — no API exists yet.** This file becomes the live index of actual endpoints (or a pointer to generated OpenAPI/schema docs) once `/services/api` has real routes. Use [templates/api-design-template.md](../templates/README.md) (Group 6) when designing each new endpoint group.
+**Phase 1 endpoints live, 2026-07-17.**
+
+## Current endpoints (`/services/auth`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/auth/register` | none | Rate-limited (5/min). 409 on duplicate email. |
+| POST | `/auth/login` | none | Rate-limited (10/min). Returns `{ user, tokens }`. Records `LOGIN_SUCCESS`/`LOGIN_FAILURE`. |
+| POST | `/auth/refresh` | refresh token (body) | Rotates the refresh token; 401 + revokes the whole chain on reuse of an already-rotated token. |
+| POST | `/auth/logout` | refresh token (body) | 204, idempotent. |
+| GET | `/auth/me` | access token (Bearer) | `JwtAuthGuard`-protected. |
+| GET | `/health` | none | `services/api` liveness check. |
+
+## Token custody (BFF pattern)
+
+The browser never receives a raw access/refresh token. The Next.js server (Auth.js) calls these endpoints server-to-server and holds tokens inside its own encrypted session; only Auth.js's httpOnly session cookie reaches the browser. See [12-security.md](12-security.md) and `21-decision-log.md` (2026-07-17 entries).
+
+Use [templates/api-design-template.md](../templates/README.md) for the next endpoint group (Phase 2+).

@@ -24,13 +24,26 @@ The full Engineering Operating System, complete:
 - `dashboard/` — 6 human-facing status files.
 - `evaluation/` — AI feature quality bar (`ai-feature-quality-bar.md`).
 
+## Product code now exists — Phase 1 (Authentication), 2026-07-17
+
+- **`package.json`, `tsconfig.base.json`** at root — npm workspaces (`packages/*`, `services/*`, `apps/*`).
+- **`packages/database`** (`@pee/database`) — Prisma schema (`User`, `RefreshToken`, `AuthAuditLog`), `PrismaService`/`PrismaModule`.
+- **`packages/types`** (`@pee/types`) — shared auth DTOs (`RegisterRequest`, `LoginRequest`, `AuthTokens`, `UserProfile`).
+- **`services/auth`** (`@pee/auth`) — `AuthModule`/`AuthController`/`AuthService`, `TokenService` (JWT access + opaque hashed refresh), `PasswordService` (argon2), `AuditLogService`, `JwtStrategy`/`JwtAuthGuard`. Tests: 4 unit spec files (24 tests), 1 e2e spec (register→login→refresh→logout flow, requires Docker Postgres).
+- **`services/api`** (`@pee/api`) — composition root (`main.ts`, `app.module.ts`, `HealthController`). Test: 1 unit spec.
+- **`apps/web`** (`web`) — Next.js 14 App Router + Auth.js v5: `/login`, `/register`, `/dashboard`, `middleware.ts` route protection, `auth.ts` (Credentials provider + refresh-on-expiry `jwt` callback), server-only `lib/api-client.ts`. Tests: Vitest+RTL unit (2 tests), Playwright e2e (register→login→dashboard→logout, requires the full stack running).
+- **`infrastructure/docker/docker-compose.dev.yml`** — Postgres (dev + test) for local use.
+- **`.github/workflows/ci.yml`** — install, Prisma generate/migrate, lint, typecheck, unit tests, auth e2e, build, then boots the API + web app and runs the Playwright suite against them.
+
+Verified in the authoring environment (no Docker available there): `npm install`, `npm run build`, `npm run typecheck`, `npm run lint -w web`, and all 26 unit tests pass across `@pee/auth`, `@pee/api`, and `web`. Integration/e2e specs requiring a live Postgres are written and wired into CI but were **not executed** in this sandbox — see [20-known-issues.md](20-known-issues.md).
+
 ## What does not exist yet
 
-- No product source code of any kind (no `/apps`, `/services`, `/packages`, `/infrastructure`) — the stack to build it with is now decided, but nothing has been implemented.
-- No CI/CD pipeline configured yet (tool chosen — GitHub Actions, `adr/0004` — pipeline itself not built).
-- No design tokens or components with concrete values (categories/rules only).
-- No schema, no auth code, no AI integration code — all await Phase 1+ implementation against the now-resolved architecture.
+- Projects/Planning/Execution/Memory/Analytics/AI-integration/Desktop/Mobile/Enterprise product code (Phases 2-10).
+- OAuth social login, email verification, password reset — explicitly deferred, see [27-backlog.md](27-backlog.md).
+- Concrete design-system token values (categories/rules only) — Phase 1 UI is deliberately minimal, not a full design-system build-out.
+- The local SQLite ↔ Postgres sync protocol (deferred per `adr/0003` to whichever phase first needs real offline behavior).
 
 ## Architecture
 
-**Resolved 2026-07-17, not yet implemented.** Backend: TypeScript/NestJS modular monolith. Storage: PostgreSQL + SQLite (local), Prisma. Infra: Docker/docker-compose, GitHub Actions, K8s/Terraform deferred. Auth: first-party NestJS module + Auth.js, JWT sessions. AI: first-party provider interface, Claude + OpenAI. Full detail and rationale: [03-system-architecture.md](03-system-architecture.md) and `adr/0002`-`adr/0006`.
+**Resolved 2026-07-17 (`adr/0002`-`adr/0006`); Phase 1 (Authentication) implemented against it, same day.** Backend: TypeScript/NestJS modular monolith. Storage: PostgreSQL (implemented) + SQLite local (not yet needed). Infra: Docker/docker-compose (implemented for dev/CI), GitHub Actions (implemented), K8s/Terraform deferred. Auth: first-party NestJS module + Auth.js, JWT sessions — implemented. AI: first-party provider interface, Claude + OpenAI — not yet implemented (Phase 6). Full detail and rationale: [03-system-architecture.md](03-system-architecture.md) and `adr/0002`-`adr/0006`.

@@ -72,3 +72,22 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Alternatives considered:** Direct vendor SDK integration, third-party orchestration framework.
 **Reason:** §10 requires multi-provider support without a rewrite; Explainable AI fields (§100) are enforced structurally at the interface. Full rationale: [adr/0006](../adr/0006-ai-llm-provider-abstraction.md).
 **Impact:** [09-ai-architecture.md](09-ai-architecture.md), [04-technology-stack.md](04-technology-stack.md). **Phase:** 0.5.
+
+## 2026-07-17 — Phase 1 implementation-level decisions (within adr/0002-0005, not new ADRs)
+
+**Decision (monorepo tool):** npm workspaces, not Turborepo/Nx.
+**Reason:** Built into npm; nothing today needs cross-package task caching. Revisit if build times become a real problem.
+
+**Decision (shared DB package):** Prisma schema + `PrismaService` live in a new `/packages/database`, not previously enumerated in `03-system-architecture.md`'s package list.
+**Reason:** Every future `/services` module needs DB access; this is a justified, documented addition to that list, not scope creep.
+
+**Decision (token custody — BFF pattern):** the browser never receives a raw JWT. Auth.js holds the access+refresh pair in its own encrypted server-side session; the Next.js server calls the NestJS API directly.
+**Reason:** Removes CORS/token-exposure risk entirely for this phase; standard, lowest-risk pattern for a Next.js-front/Nest-API-back pair.
+
+**Decision (refresh tokens are opaque, not JWTs):** refresh tokens are random strings; only their SHA-256 hash is persisted. Rotation revokes the old token and issues a new one; reuse of an already-revoked token revokes the user's entire active chain (`TOKEN_REUSE_DETECTED`).
+**Reason:** Makes revocation authoritative in the database instead of waiting on JWT expiry — standard theft-detection pattern.
+
+**Decision (dependency vulnerabilities not force-upgraded):** `npm audit` flagged advisories in the NestJS 10.x/Express and Next.js 14.x chains that only clear via major-version bumps (Nest 11, Next 16).
+**Reason:** Force-upgrading mid-feature via `npm audit fix --force` would pull in untested majors without the regression testing such an upgrade deserves; tracked instead in [20-known-issues.md](20-known-issues.md) as a dedicated follow-up.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md). **Phase:** 1.

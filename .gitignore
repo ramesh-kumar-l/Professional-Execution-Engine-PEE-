@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.log
+.env
+.env.*.local
+!.env.example
+.DS_Store
+Thumbs.db
+prisma/generated/
+test-results/
+playwright-report/
+.turbo/

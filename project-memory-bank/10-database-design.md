@@ -23,4 +23,12 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 ## Status
 
-**Technology chosen; no schema exists yet.** Will be populated once Phase 0/1 entities are defined in a PRD ([02-prd.md](02-prd.md)).
+**Phase 1 schema implemented, 2026-07-17** (`packages/database/prisma/schema.prisma`).
+
+## Current tables
+
+- **`User`** (`users`) — `id` (uuid), `email` (unique), `passwordHash` (argon2), `displayName`, `role` (enum, `USER` default), `createdAt`, `updatedAt`, `version`.
+- **`RefreshToken`** (`refresh_tokens`) — `id` (uuid), `userId` (FK, cascade delete), `tokenHash` (unique, SHA-256 of the opaque raw token — the raw value is never stored), `issuedAt`, `expiresAt`, `revokedAt` (nullable), `replacedByTokenId` (nullable self-relation, rotation chain), `updatedAt`, `version`.
+- **`AuthAuditLog`** (`auth_audit_logs`) — `id` (uuid), `userId` (nullable FK, set-null on delete), `eventType` (enum: `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`, `TOKEN_REFRESH`, `TOKEN_REUSE_DETECTED`), `ipAddress`, `userAgent`, `createdAt`, `updatedAt`, `version`.
+
+All three follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`). Migrations: `npx prisma migrate dev --schema packages/database/prisma/schema.prisma` (dev), `prisma migrate deploy` (CI/prod, see `.github/workflows/ci.yml`).
