@@ -2,4 +2,4 @@
 
 Live draft — mirrors `project-memory-bank/29-next-task.md` at session end.
 
-Phase 0, 0.5, and 1 (Authentication) are complete. Next: run the Docker-dependent integration/e2e suite (`services/auth/test/auth.e2e-spec.ts`, `apps/web/e2e/login.spec.ts`) at least once — not executed in the authoring sandbox — then get user direction on Phase 2 (Projects) scope.
+Phase 0, 0.5, 1 (Authentication), and 2 (Projects) are complete. Next, ideally in an environment with Docker: generate and apply the first Prisma migration (none has ever been created), then run the Docker-dependent integration/e2e suites (`services/auth/test/auth.e2e-spec.ts`, `services/projects/test/projects.e2e-spec.ts`, `apps/web/e2e/login.spec.ts`, `apps/web/e2e/projects.spec.ts`) at least once — not executed in the authoring sandbox — then get user direction on Phase 3 (Planning Engine) scope.

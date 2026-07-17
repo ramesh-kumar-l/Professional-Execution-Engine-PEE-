@@ -23,12 +23,15 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 ## Status
 
-**Phase 1 schema implemented, 2026-07-17** (`packages/database/prisma/schema.prisma`).
+**Phase 2 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma`).
 
 ## Current tables
 
 - **`User`** (`users`) — `id` (uuid), `email` (unique), `passwordHash` (argon2), `displayName`, `role` (enum, `USER` default), `createdAt`, `updatedAt`, `version`.
 - **`RefreshToken`** (`refresh_tokens`) — `id` (uuid), `userId` (FK, cascade delete), `tokenHash` (unique, SHA-256 of the opaque raw token — the raw value is never stored), `issuedAt`, `expiresAt`, `revokedAt` (nullable), `replacedByTokenId` (nullable self-relation, rotation chain), `updatedAt`, `version`.
 - **`AuthAuditLog`** (`auth_audit_logs`) — `id` (uuid), `userId` (nullable FK, set-null on delete), `eventType` (enum: `LOGIN_SUCCESS`, `LOGIN_FAILURE`, `LOGOUT`, `TOKEN_REFRESH`, `TOKEN_REUSE_DETECTED`), `ipAddress`, `userAgent`, `createdAt`, `updatedAt`, `version`.
+- **`Project`** (`projects`) — `id` (uuid), `ownerId` (FK to `User`, cascade delete), `name`, `description` (nullable), `status` (enum `ProjectStatus`: `ACTIVE`/`ARCHIVED`, default `ACTIVE`), `archivedAt` (nullable, set when archived), `createdAt`, `updatedAt`, `version`. Indexed on `ownerId`. `DELETE /projects/:id` sets `status = ARCHIVED` + `archivedAt` rather than removing the row (soft delete).
 
-All three follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`). Migrations: `npx prisma migrate dev --schema packages/database/prisma/schema.prisma` (dev), `prisma migrate deploy` (CI/prod, see `.github/workflows/ci.yml`).
+All four follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`).
+
+**No migration files exist yet** (`packages/database/prisma/migrations/` has never been generated) — `prisma migrate dev` requires a live database to diff against, and no Docker/Postgres has been available in the authoring sandbox for either Phase 1 or Phase 2. Once Docker is available: `npx prisma migrate dev --name init --schema packages/database/prisma/schema.prisma` (creates the first migration, covering all four tables at once), then `prisma migrate deploy` for CI/prod (see `.github/workflows/ci.yml`, which currently has nothing to deploy until this migration exists). Tracked in [20-known-issues.md](20-known-issues.md).

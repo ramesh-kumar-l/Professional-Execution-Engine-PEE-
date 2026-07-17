@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 1 — Authentication. Complete (2026-07-17).**
+**Phase 2 — Projects. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap) and Phase 0.5 (architecture ADRs) are complete. Phase 1 — the first real product code — is implemented: `services/auth` (NestJS module, system of record for users/credentials), `services/api` (composition root), `packages/database` (Prisma schema + `PrismaService`), `packages/types` (shared DTOs), `apps/web` (Next.js + Auth.js login/register/dashboard). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), and Phase 1 (Authentication) are complete. Phase 2 — the first domain-entity feature — is implemented: `services/projects` (NestJS module, ownership-scoped CRUD on `Project`), `packages/database` (`Project` table added), `packages/types` (project DTOs added), `apps/web` (project list/create/edit pages). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -51,8 +51,23 @@ Phase 0 (EOS bootstrap) and Phase 0.5 (architecture ADRs) are complete. Phase 1 
 | `npm run build` / `typecheck` / `lint` clean | Done |
 | Memory-bank documentation sweep | Done |
 
+## Phase 2 — Projects
+
+| Deliverable | Status |
+|---|---|
+| `Project` model added to `packages/database` (Prisma) | Done |
+| Shared project types (`packages/types`) | Done |
+| `services/projects` (create/list/get/update/archive, ownership enforcement, pagination/filter/search) | Done |
+| `services/api` wiring (`ProjectsModule` imported) | Done |
+| `apps/web` (project list/create/edit pages, linked from dashboard) | Done |
+| Unit + DTO tests (20, passing) | Done |
+| Frontend unit tests (Vitest+RTL, 5 including Phase 1's, passing) | Done |
+| Integration/e2e tests (Docker Postgres required) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, and 1 are done. **Phase 2 — Projects** is next, once scoped (`16-roadmap.md`).
+Phase 0, 0.5, 1, and 2 are done. **Phase 3 — Planning Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

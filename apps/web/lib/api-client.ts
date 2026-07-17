@@ -1,4 +1,12 @@
-import type { AuthTokens, UserProfile } from '@pee/types';
+import type {
+  AuthTokens,
+  CreateProjectRequest,
+  PaginatedResponse,
+  ProjectResponse,
+  ProjectStatus,
+  UpdateProjectRequest,
+  UserProfile,
+} from '@pee/types';
 
 /**
  * Server-only client for the NestJS auth API. Called from Auth.js callbacks
@@ -51,5 +59,63 @@ export async function logoutRequest(refreshToken: string): Promise<void> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
+  }).catch(() => undefined);
+}
+
+function authHeaders(accessToken: string): Record<string, string> {
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` };
+}
+
+export async function listProjects(
+  accessToken: string,
+  status: ProjectStatus = 'ACTIVE',
+): Promise<PaginatedResponse<ProjectResponse>> {
+  const res = await fetch(`${baseUrl}/projects?status=${status}`, {
+    headers: authHeaders(accessToken),
+    cache: 'no-store',
+  });
+  if (!res.ok) return { data: [], page: 1, pageSize: 20, total: 0, totalPages: 1 };
+  return res.json();
+}
+
+export async function getProject(accessToken: string, id: string): Promise<ProjectResponse | null> {
+  const res = await fetch(`${baseUrl}/projects/${id}`, { headers: authHeaders(accessToken), cache: 'no-store' });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function createProject(
+  accessToken: string,
+  body: CreateProjectRequest,
+): Promise<ProjectResponse | { error: string }> {
+  const res = await fetch(`${baseUrl}/projects`, {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 201) return res.json();
+  const errBody = await res.json().catch(() => ({}));
+  return { error: errBody.message ?? 'Could not create project' };
+}
+
+export async function updateProject(
+  accessToken: string,
+  id: string,
+  body: UpdateProjectRequest,
+): Promise<ProjectResponse | { error: string }> {
+  const res = await fetch(`${baseUrl}/projects/${id}`, {
+    method: 'PATCH',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify(body),
+  });
+  if (res.ok) return res.json();
+  const errBody = await res.json().catch(() => ({}));
+  return { error: errBody.message ?? 'Could not update project' };
+}
+
+export async function archiveProject(accessToken: string, id: string): Promise<void> {
+  await fetch(`${baseUrl}/projects/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
   }).catch(() => undefined);
 }

@@ -91,3 +91,23 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Force-upgrading mid-feature via `npm audit fix --force` would pull in untested majors without the regression testing such an upgrade deserves; tracked instead in [20-known-issues.md](20-known-issues.md) as a dedicated follow-up.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md). **Phase:** 1.
+
+## 2026-07-18 — Phase 2 implementation-level decisions
+
+**Decision (single-owner model, no sharing yet):** every `Project` belongs to exactly one `User` (`ownerId`); there is no multi-user membership/sharing model.
+**Alternatives considered:** A `ProjectMember` join table with per-project roles from the start.
+**Reason:** Nothing in the Phase 2 exit criteria ("core project data model, CRUD + API contract, Postgres schema") asks for sharing, and no consuming feature exists yet to justify the complexity (Sustainable Complexity, Principle 8). Adding it now would be a guess at a shape that Tasks/collaboration (Phase 3+) might not actually need. Recorded as backlog, not silently dropped.
+
+**Decision (soft delete via archive, not row deletion):** `DELETE /projects/:id` sets `status = ARCHIVED` + `archivedAt`; the row is never removed.
+**Reason:** Matches the DB design doc's "soft deletes where appropriate" principle; archived projects stay recoverable and don't break referential integrity if future entities (e.g. Tasks) reference a project.
+
+**Decision (ownership check returns 404, not 403):** `ProjectsService.findOwnedOrThrow` throws `NotFoundException` whether a project doesn't exist or belongs to someone else.
+**Reason:** A 403 would confirm the resource exists, letting a caller enumerate other users' project IDs by observing 403-vs-404 responses; 404-for-both closes that side channel.
+
+**Decision (pagination shape):** list responses use `{ data, page, pageSize, total, totalPages }` (`PaginatedResponse<T>` in `@pee/types`), default `page=1`/`pageSize=20`, capped at `pageSize=100`.
+**Reason:** Matches `11-api-contract.md`'s governing standard ("pagination, filtering, sorting" on every endpoint that needs it) with a shape reusable by every future list endpoint, not just `/projects`.
+
+**Decision (no per-project audit log yet):** project create/update/archive actions are not recorded anywhere (unlike `AuthAuditLog` for auth events).
+**Reason:** Building a general-purpose audit trail now, before any second domain entity exists to validate its shape, would be speculative. Tracked in [20-known-issues.md](20-known-issues.md) and [27-backlog.md](27-backlog.md) rather than silently skipped.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md). **Phase:** 2.

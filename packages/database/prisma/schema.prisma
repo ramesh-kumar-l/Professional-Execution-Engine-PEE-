@@ -19,6 +19,11 @@ enum AuthEventType {
   TOKEN_REUSE_DETECTED
 }
 
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 // Client-generated UUID primary keys + updatedAt/version columns on every
 // syncable table, per adr/0003 (keeps offline sync possible later without
 // a schema rewrite).
@@ -33,6 +38,7 @@ model User {
   version       Int            @default(1)
   refreshTokens RefreshToken[]
   auditLogs     AuthAuditLog[]
+  projects      Project[]
 
   @@map("users")
 }
@@ -68,4 +74,20 @@ model AuthAuditLog {
 
   @@index([userId])
   @@map("auth_audit_logs")
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  ownerId     String
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      ProjectStatus @default(ACTIVE)
+  archivedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  version     Int           @default(1)
+
+  @@index([ownerId])
+  @@map("projects")
 }

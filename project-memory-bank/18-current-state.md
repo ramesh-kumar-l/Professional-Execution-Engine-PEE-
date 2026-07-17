@@ -24,26 +24,28 @@ The full Engineering Operating System, complete:
 - `dashboard/` — 6 human-facing status files.
 - `evaluation/` — AI feature quality bar (`ai-feature-quality-bar.md`).
 
-## Product code now exists — Phase 1 (Authentication), 2026-07-17
+## Product code now exists — Phase 1 (Authentication) + Phase 2 (Projects), 2026-07-17/18
 
 - **`package.json`, `tsconfig.base.json`** at root — npm workspaces (`packages/*`, `services/*`, `apps/*`).
-- **`packages/database`** (`@pee/database`) — Prisma schema (`User`, `RefreshToken`, `AuthAuditLog`), `PrismaService`/`PrismaModule`.
-- **`packages/types`** (`@pee/types`) — shared auth DTOs (`RegisterRequest`, `LoginRequest`, `AuthTokens`, `UserProfile`).
-- **`services/auth`** (`@pee/auth`) — `AuthModule`/`AuthController`/`AuthService`, `TokenService` (JWT access + opaque hashed refresh), `PasswordService` (argon2), `AuditLogService`, `JwtStrategy`/`JwtAuthGuard`. Tests: 4 unit spec files (24 tests), 1 e2e spec (register→login→refresh→logout flow, requires Docker Postgres).
-- **`services/api`** (`@pee/api`) — composition root (`main.ts`, `app.module.ts`, `HealthController`). Test: 1 unit spec.
-- **`apps/web`** (`web`) — Next.js 14 App Router + Auth.js v5: `/login`, `/register`, `/dashboard`, `middleware.ts` route protection, `auth.ts` (Credentials provider + refresh-on-expiry `jwt` callback), server-only `lib/api-client.ts`. Tests: Vitest+RTL unit (2 tests), Playwright e2e (register→login→dashboard→logout, requires the full stack running).
+- **`packages/database`** (`@pee/database`) — Prisma schema (`User`, `RefreshToken`, `AuthAuditLog`, `Project`), `PrismaService`/`PrismaModule`.
+- **`packages/types`** (`@pee/types`) — shared auth DTOs (`RegisterRequest`, `LoginRequest`, `AuthTokens`, `UserProfile`) and project DTOs (`CreateProjectRequest`, `UpdateProjectRequest`, `ProjectResponse`, `ListProjectsQuery`, `PaginatedResponse<T>`).
+- **`services/auth`** (`@pee/auth`) — `AuthModule`/`AuthController`/`AuthService`, `TokenService` (JWT access + opaque hashed refresh), `PasswordService` (argon2), `AuditLogService`, `JwtStrategy`/`JwtAuthGuard`/`CurrentUser` (the latter two exported for reuse by other modules). Tests: 4 unit spec files (24 tests), 1 e2e spec (register→login→refresh→logout flow, requires Docker Postgres).
+- **`services/projects`** (`@pee/projects`) — `ProjectsModule`/`ProjectsController` (create/list/get/update/archive, all `JwtAuthGuard`-protected)/`ProjectsService` (Prisma access + ownership enforcement, 404-not-403 on cross-user access). Tests: 2 unit spec files (20 tests), 1 e2e spec (create→list→get→update→archive flow + cross-user 404 check, requires Docker Postgres).
+- **`services/api`** (`@pee/api`) — composition root (`main.ts`, `app.module.ts` importing `AuthModule` + `ProjectsModule`, `HealthController`). Test: 1 unit spec.
+- **`apps/web`** (`web`) — Next.js 14 App Router + Auth.js v5: `/login`, `/register`, `/dashboard`, `/dashboard/projects` (list), `/dashboard/projects/new` (create), `/dashboard/projects/[id]` (edit), `middleware.ts` route protection, `auth.ts` (Credentials provider + refresh-on-expiry `jwt` callback), server-only `lib/api-client.ts` (auth + Bearer-authenticated project calls), `components/ProjectForm.tsx` (shared create/edit form, `onSubmit`+`useState` pattern — not `useFormState`, which needs Next's bundled React and isn't unit-testable under plain Vitest). Tests: Vitest+RTL unit (5 tests), Playwright e2e (`login.spec.ts`, `projects.spec.ts` — requires the full stack running).
 - **`infrastructure/docker/docker-compose.dev.yml`** — Postgres (dev + test) for local use.
-- **`.github/workflows/ci.yml`** — install, Prisma generate/migrate, lint, typecheck, unit tests, auth e2e, build, then boots the API + web app and runs the Playwright suite against them.
+- **`.github/workflows/ci.yml`** — install, Prisma generate/migrate, lint, typecheck, unit tests, auth e2e, projects e2e, build, then boots the API + web app and runs the Playwright suite against them.
 
-Verified in the authoring environment (no Docker available there): `npm install`, `npm run build`, `npm run typecheck`, `npm run lint -w web`, and all 26 unit tests pass across `@pee/auth`, `@pee/api`, and `web`. Integration/e2e specs requiring a live Postgres are written and wired into CI but were **not executed** in this sandbox — see [20-known-issues.md](20-known-issues.md).
+Verified in the authoring environment (no Docker available there): `npm install`, `npm run build`, `npm run typecheck`, `npm run lint -w web`, and all unit tests pass (24 in `@pee/auth`, 1 in `@pee/api`, 20 in `@pee/projects`, 5 in `web`). Integration/e2e specs requiring a live Postgres are written and wired into CI but were **not executed** in this sandbox — see [20-known-issues.md](20-known-issues.md). **No Prisma migration has ever been generated** (`packages/database/prisma/migrations/` doesn't exist) — also requires Docker, also tracked in known-issues.
 
 ## What does not exist yet
 
-- Projects/Planning/Execution/Memory/Analytics/AI-integration/Desktop/Mobile/Enterprise product code (Phases 2-10).
+- Planning/Execution/Memory/Analytics/AI-integration/Desktop/Mobile/Enterprise product code (Phases 3-10).
 - OAuth social login, email verification, password reset — explicitly deferred, see [27-backlog.md](27-backlog.md).
-- Concrete design-system token values (categories/rules only) — Phase 1 UI is deliberately minimal, not a full design-system build-out.
+- Multi-user project sharing, project templates/tags, a general domain-entity audit trail — explicitly deferred, see [27-backlog.md](27-backlog.md).
+- Concrete design-system token values (categories/rules only) — UI so far is deliberately minimal, not a full design-system build-out.
 - The local SQLite ↔ Postgres sync protocol (deferred per `adr/0003` to whichever phase first needs real offline behavior).
 
 ## Architecture
 
-**Resolved 2026-07-17 (`adr/0002`-`adr/0006`); Phase 1 (Authentication) implemented against it, same day.** Backend: TypeScript/NestJS modular monolith. Storage: PostgreSQL (implemented) + SQLite local (not yet needed). Infra: Docker/docker-compose (implemented for dev/CI), GitHub Actions (implemented), K8s/Terraform deferred. Auth: first-party NestJS module + Auth.js, JWT sessions — implemented. AI: first-party provider interface, Claude + OpenAI — not yet implemented (Phase 6). Full detail and rationale: [03-system-architecture.md](03-system-architecture.md) and `adr/0002`-`adr/0006`.
+**Resolved 2026-07-17 (`adr/0002`-`adr/0006`); Phase 1 (Authentication) implemented against it same day, Phase 2 (Projects) implemented 2026-07-18.** Backend: TypeScript/NestJS modular monolith. Storage: PostgreSQL (implemented) + SQLite local (not yet needed). Infra: Docker/docker-compose (implemented for dev/CI), GitHub Actions (implemented), K8s/Terraform deferred. Auth: first-party NestJS module + Auth.js, JWT sessions — implemented. AI: first-party provider interface, Claude + OpenAI — not yet implemented (Phase 6). Full detail and rationale: [03-system-architecture.md](03-system-architecture.md) and `adr/0002`-`adr/0006`.

@@ -25,3 +25,12 @@ EOS bootstrap (Phase 0) complete: all 13 groups delivered.
 - **Phase 1 (Authentication)** — first real product code: npm workspaces scaffold; `packages/database` (Prisma schema); `packages/types`; `services/auth` (NestJS, JWT+refresh rotation, argon2, rate limiting, audit logging); `services/api` (composition root); `apps/web` (Next.js + Auth.js login/register/dashboard); `infrastructure/docker/docker-compose.dev.yml`; `.github/workflows/ci.yml`.
 - Wrote 26 unit/DTO tests (all passing) plus integration/e2e specs requiring Docker Postgres (written, wired into CI, not executed in this sandbox).
 - Updated `02-prd.md`, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `17-19`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, `28-29`, plus `dashboard/*` and `session/*`.
+
+## 2026-07-18
+
+- **Phase 2 (Projects)** — first domain-entity feature: `Project` model (`packages/database`, `ProjectStatus` enum, ownership via `ownerId`, soft delete via `status`/`archivedAt`); project types (`packages/types`); `services/projects` (`ProjectsController`/`ProjectsService` — create/list/get/update/archive, `JwtAuthGuard`-protected, ownership enforced with 404-not-403, pagination/status-filter/search); `services/api` wired to import `ProjectsModule`; `apps/web` (`/dashboard/projects` list/new/[id] pages, `ProjectForm`, Bearer-authenticated API client methods).
+- Added a projects e2e step to `.github/workflows/ci.yml`.
+- Wrote 20 backend unit/DTO tests + 5 frontend Vitest tests (all passing) plus integration/e2e specs requiring Docker Postgres (written, wired into CI, not executed in this sandbox).
+- Discovered mid-session that `useFormState` (used by `RegisterForm`) requires Next.js's bundled React and can't be unit-tested under plain Vitest/react-dom — built `ProjectForm` with the `onSubmit`+`useState` pattern instead (like `LoginForm`) so it could actually be tested.
+- Discovered no Prisma migration has ever been generated in this repo (`prisma/migrations/` doesn't exist) — documented as a known issue requiring Docker to resolve, alongside the still-unexecuted e2e suites.
+- Updated `02-prd.md`, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `17-19`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, `28-29`, plus `dashboard/*` and `session/*`.

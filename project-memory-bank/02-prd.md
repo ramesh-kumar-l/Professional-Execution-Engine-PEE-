@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 1 (Authentication) written and implemented, 2026-07-17.**
+**Status: Phase 2 (Projects) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -25,6 +25,30 @@
   - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
   - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
   - [ ] OAuth social login, email verification, password reset — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 2 — Projects
+
+- **Objective:** Let an authenticated user create, organize, and archive their own projects — the first real domain entity in the product, built directly on the Phase 1 auth foundation.
+- **Current state:** Only `User`/`RefreshToken`/`AuthAuditLog` existed; no project/domain data model.
+- **Desired state:** A `Project` entity owned by exactly one `User`, exposed via a NestJS `projects` module, with a Next.js UI to list/create/edit/archive.
+- **Required APIs:** `POST /projects`, `GET /projects`, `GET /projects/:id`, `PATCH /projects/:id`, `DELETE /projects/:id` (soft-delete/archive) — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** New `Project` table (`ProjectStatus` enum `ACTIVE`/`ARCHIVED`) — see [10-database-design.md](10-database-design.md).
+- **UI impact:** `/dashboard/projects` (list), `/dashboard/projects/new` (create), `/dashboard/projects/[id]` (edit), linked from `/dashboard`.
+- **AI impact:** None.
+- **Testing strategy:** Unit (`ProjectsService`, mocked Prisma) + DTO validation, integration/e2e (Supertest against a real Postgres), frontend unit (Vitest+RTL for `ProjectForm`) and Playwright e2e for the full create→list→edit→archive flow.
+- **Migration requirements:** Adds `Project` to the existing Prisma schema; no migration file has been generated yet (requires a live Postgres via Docker, unavailable in the authoring sandbox — same constraint as Phase 1). Must run `npx prisma migrate dev --name add_projects --schema packages/database/prisma/schema.prisma` once Docker is available, before this can be deployed anywhere.
+- **Observability impact:** None new — project CRUD is not logged to `AuthAuditLog` (that table is auth-event-specific); no equivalent audit trail exists yet for project actions (see [20-known-issues.md](20-known-issues.md)).
+- **Security considerations:** Every route requires a valid access JWT (`JwtAuthGuard`); ownership enforced in `ProjectsService` with cross-user access returning 404 (not 403) to avoid resource enumeration — see [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `21-decision-log.md`, `27-backlog.md`.
+- **Acceptance criteria:**
+  - [x] Create/list/get/update/archive endpoints implemented and validated server-side
+  - [x] Ownership enforcement (404 on cross-user access) implemented
+  - [x] Pagination, status filter, and search implemented on the list endpoint
+  - [x] Unit + DTO tests passing (20 in `@pee/projects`, plus 5 frontend Vitest tests)
+  - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [ ] No initial Prisma migration generated yet — requires Docker (see Migration requirements above)
+  - [ ] Multi-user project sharing, templates, tags — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

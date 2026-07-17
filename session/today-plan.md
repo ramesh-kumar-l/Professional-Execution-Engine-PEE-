@@ -11,3 +11,7 @@ Resolve Phase 0.5 — the backend/database/infrastructure/auth/AI-provider archi
 ## 2026-07-17 (continued) — Phase 1
 
 Implement Phase 1 (Authentication) end-to-end against the resolved architecture: npm workspaces scaffold, `packages/database`/`packages/types`, `services/auth` NestJS module, `services/api` composition root, `apps/web` Next.js/Auth.js frontend, Docker compose + CI, tests, then update the memory bank and report a consolidated summary.
+
+## 2026-07-18 — Phase 2
+
+Implement Phase 2 (Projects) against the Phase 1 auth foundation: `Project` model in `packages/database`, project types in `packages/types`, `services/projects` NestJS module (ownership-scoped CRUD), `services/api` wiring, `apps/web` project list/create/edit pages, backend + frontend tests, then update the memory bank and report a consolidated summary.
