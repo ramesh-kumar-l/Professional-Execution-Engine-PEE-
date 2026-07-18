@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 6 — AI Integration. Complete (2026-07-18).**
+**Phase 7 — Analytics. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), and Phase 5 (Memory Engine) are complete. Phase 6 is implemented: `services/ai` (NestJS module — `AIProvider` interface exposing `complete()` only, `AI_PROVIDER`-selected DI factory constructing only the active vendor's implementation, `AnthropicProvider`/`OpenAIProvider` proven against a shared behavioral contract test) plus its first real consumer — goal → task-breakdown suggestions, gated behind explicit human accept/dismiss, every suggestion carrying reason/confidence/alternatives, every recommendation carrying the context the model saw. This is `adr/0006`'s deferred provider abstraction, designed, working, and actually consumed — not just an interface. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), and Phase 6 (AI Integration) are complete. Phase 7 is implemented: `services/analytics` (NestJS module — `SummaryService`/`VelocityService`/`TimeTrackingService`, each a small owner-scoped read layer directly over `@pee/database`'s Prisma client, exposed via `AnalyticsController` at `GET /analytics/summary|velocity|time-tracking`). Unlike every prior phase, Phase 7 had no pre-existing scope in the roadmap — it was defined this session as a read/reporting layer over Phases 2-6's existing tables, deliberately introducing no new domain model (only one supporting composite index). The exit criterion — "Metrics live in `dashboard/METRICS.md`" — is satisfied by rewriting that file to document the live metrics contract these endpoints now produce. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -129,8 +129,25 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest new file: `ai-recommendations.service.ts`, 212 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 7 — Analytics
+
+| Deliverable | Status |
+|---|---|
+| Composite `[ownerId, createdAt]` index added to `ExecutionEvent` (`packages/database`) — the only schema change this phase, no new model | Done |
+| Shared analytics types (`packages/types`) | Done |
+| `services/analytics` — `SummaryService`/`VelocityService`/`TimeTrackingService`, each querying `@pee/database`'s `PrismaService` directly (documented read-only-join carve-out, no `@pee/planning`/`@pee/execution`/`@pee/ai` dependency) | Done |
+| `AnalyticsController` — `GET /analytics/summary`, `GET /analytics/velocity`, `GET /analytics/time-tracking`, all `JwtAuthGuard`-protected and owner-scoped from the JWT | Done |
+| `services/api` wiring (`AnalyticsModule` imported) | Done |
+| `apps/web` (`/dashboard/analytics` page — summary/velocity/time-tracking tables, linked from the main dashboard) | Done |
+| `dashboard/METRICS.md` rewritten with the live product-analytics metrics contract — the phase's literal exit criterion | Done |
+| Unit tests (25 in `@pee/analytics` — summary/velocity/time-tracking services, DTO validation — 208 total across the workspace) | Done |
+| Integration/e2e test (`services/analytics/test/analytics.e2e-spec.ts` — Docker Postgres required, seeds real data via the HTTP API for two owners and asserts no cross-owner leakage) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Every new/edited file under ~300 lines | Done (largest new file: `apps/web/app/dashboard/analytics/page.tsx`, 104 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, 4, 5, and 6 are done. **Phase 7 — Analytics** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, 5, 6, and 7 are done. **Phase 8 — Desktop** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

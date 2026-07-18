@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 6 (AI Integration) written and implemented, 2026-07-18.**
+**Status: Phase 7 (Analytics) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -152,6 +152,32 @@
   - [x] Every new/edited file stays under ~300 lines (largest new file: `ai-recommendations.service.ts`, 212 lines)
   - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-5)
   - [ ] A real network smoke test against the live Anthropic/OpenAI APIs — requires real vendor credentials, not exercised by any automated test; `stream`/`embed` methods, automatic multi-provider failover, additional AI-native features, AI-recommendation sync coverage, usage/cost tracking — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 7 — Analytics
+
+- **Objective:** Give a user visibility into their own productivity data — status breakdowns, completion velocity, and time actually tracked — as a read-only reporting layer over Phases 2-6's existing data. Unlike every prior phase, this phase had no pre-existing scope in the roadmap; the objective and shape were derived this session from the user's literal exit criterion ("metrics live in `dashboard/METRICS.md`") plus the data the product already has.
+- **Current state:** Phases 1-6 complete; goal/task status, time-tracking sessions, the execution-event log, and AI-recommendation outcomes all exist as raw rows, but nothing aggregates them for the user.
+- **Desired state:** A NestJS `analytics` module exposing three owner-scoped read endpoints, rendered on a new `apps/web` dashboard page, with `dashboard/METRICS.md` documenting the resulting live metrics contract.
+- **Required APIs:** `GET /analytics/summary`, `GET /analytics/velocity`, `GET /analytics/time-tracking` — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** One composite index (`ExecutionEvent.[ownerId, createdAt]`) — no new table. See [10-database-design.md](10-database-design.md).
+- **UI impact:** New `/dashboard/analytics` page (summary/velocity/time-tracking tables), linked from `/dashboard`.
+- **AI impact:** None — summary includes AI-recommendation acceptance rate as one metric among several, but introduces no new AI capability.
+- **Testing strategy:** Unit (three services, mocked Prisma) + DTO validation, one e2e spec seeding two owners via the real HTTP API and asserting no cross-owner leakage (requires Docker Postgres).
+- **Migration requirements:** Adds one index to the existing `ExecutionEvent` table; no migration file generated yet — same carried-forward Docker gap as every prior phase.
+- **Observability impact:** None new — read-only endpoints, no state change to audit.
+- **Security considerations:** Identical `JwtAuthGuard` + ownership-scoping pattern as every prior module; every query takes `ownerId` as an explicit service-method parameter, scoped from the JWT, never a request parameter. No new authorization pattern. See [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `21-decision-log.md`, `27-backlog.md`, `dashboard/METRICS.md`.
+- **Acceptance criteria:**
+  - [x] `GET /analytics/summary` returns status breakdowns, total time tracked, and AI-recommendation acceptance rate, scoped to the caller
+  - [x] `GET /analytics/velocity` returns daily task/goal completion buckets over a capped (1-90 day) trailing window
+  - [x] `GET /analytics/time-tracking` returns tracked-seconds totals grouped by goal or project, over a capped (1-365 day) trailing window
+  - [x] `dashboard/METRICS.md` rewritten to document the live metrics contract — the literal exit criterion
+  - [x] Unit tests passing (25 in `@pee/analytics` — 208 total across the workspace)
+  - [x] Integration/e2e test written; needs Docker only — not run in the authoring sandbox (no Docker there)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest new file: `apps/web/app/dashboard/analytics/page.tsx`, 104 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-6)
+  - [ ] Materialized analytics rollups, charting/visualization upgrade, analytics sync coverage — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

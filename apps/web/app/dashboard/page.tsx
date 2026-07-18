@@ -11,6 +11,7 @@ export default async function DashboardPage() {
       <p>{session?.user.email}</p>
       <Link href="/dashboard/projects">Projects</Link>
       <Link href="/dashboard/execution">Active work</Link>
+      <Link href="/dashboard/analytics">Analytics</Link>
       <form action={logoutAction}>
         <button type="submit">Log out</button>
       </form>

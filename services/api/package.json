@@ -17,6 +17,7 @@
     "@nestjs/event-emitter": "^2.1.1",
     "@nestjs/throttler": "^5.1.2",
     "@pee/ai": "*",
+    "@pee/analytics": "*",
     "@pee/auth": "*",
     "@pee/database": "*",
     "@pee/execution": "*",

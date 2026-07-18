@@ -11,7 +11,9 @@
       "Bash(echo \"exit:$?\")",
       "Bash(git -C /d/ClaudeProjects/Professional-Execution-Engine-PEE- check-ignore -v \"packages/local-client/prisma/generated/client/index.js\")",
       "Bash(git add *)",
-      "Bash(echo \"exit: $?\")"
+      "Bash(echo \"exit: $?\")",
+      "Bash(npx jest *)",
+      "Bash(JWT_ACCESS_SECRET=test-secret JWT_REFRESH_SECRET=test-secret DATABASE_URL=\"postgresql://user:pass@localhost:5432/pee\" npx jest --config jest-e2e.config.js)"
     ]
   }
 }

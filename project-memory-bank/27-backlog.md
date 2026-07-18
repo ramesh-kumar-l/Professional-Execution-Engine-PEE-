@@ -64,13 +64,6 @@ Priority: Medium.
 Potential dependencies: A notifications service for reminders.
 Estimated value: Turns a flat task list into a real schedulable plan.
 
-### AI-assisted plan generation
-Description: Given a goal, have an AI provider suggest a decomposed task list.
-Reason: Requires the `AIProvider` abstraction, which doesn't exist until Phase 6 (AI Integration).
-Priority: Medium.
-Potential dependencies: Phase 6's `AIProvider` interface (`adr/0006`).
-Estimated value: Reduces manual planning effort significantly.
-
 ### Multi-user goal/task collaboration
 Description: Let more than one user see/edit goals and tasks within a shared project.
 Reason: Out of scope for Phase 3 MVP; single-owner (`ownerId`) model mirrors `Project`'s and is sufficient until a real collaborative feature needs it — same reasoning as the existing multi-user project sharing entry.
@@ -168,6 +161,27 @@ Reason: No automated test in this repo exercises a real network call to either v
 Priority: High — before this feature is relied on with real users.
 Potential dependencies: Real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` credentials in a controlled environment.
 Estimated value: Confidence the provider implementations actually work against the real vendor APIs, not just their documented shape.
+
+### Materialized analytics rollups
+Description: Precompute analytics aggregates (a summary table, incremental counters, or a scheduled job) instead of computing every `/analytics/*` response live from `TaskExecutionSession`/`ExecutionEvent`/status fields at request time.
+Reason: Phase 7 deliberately chose live query aggregation — current per-user data volumes are small, and a rollup table/job would be speculative infrastructure plus a new staleness concern for a load that doesn't exist yet (Sustainable Complexity, Principle 8).
+Priority: Low — revisit only if real usage data shows query cost becoming a problem.
+Potential dependencies: Telemetry showing actual query latency/cost at scale.
+Estimated value: Lower per-request cost for accounts with very large history, once that's a real (not hypothetical) problem.
+
+### Analytics charting/visualization upgrade
+Description: Replace `/dashboard/analytics`'s plain tables with real charts (line/bar) for the velocity and time-tracking views.
+Reason: Phase 7 kept the frontend dependency-free and consistent with the rest of `apps/web`'s minimal, 100%-server-rendered UI (no charting library, no client components) — a real visual upgrade is a reasonable follow-up, not a Phase 7 blocker.
+Priority: Low.
+Potential dependencies: A charting library choice (adds a new frontend dependency and likely a client component, a first for `apps/web`).
+Estimated value: Easier at-a-glance trend reading than a table of numbers.
+
+### Sync coverage for analytics data
+Description: If a future offline UI needs to show analytics while disconnected, extend the sync protocol or add a dedicated offline cache for `/analytics/*` responses.
+Reason: `@pee/analytics` has no persisted rows of its own (pure computed reads over other tables) — there's nothing to add to the Phase 5 sync registry today, but a future offline analytics view would need its own caching strategy, not a registry entry.
+Priority: Low — no offline UI exists yet to need it.
+Potential dependencies: A concrete offline-UI feature (same precedent as `ExecutionEvent`/`AIRecommendation`'s sync-coverage backlog entries).
+Estimated value: Full-fidelity offline experience once a real offline UI exists.
 
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.

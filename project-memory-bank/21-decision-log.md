@@ -198,3 +198,25 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Directly serves the "production-level stable system" requirement — an unbounded prompt would mean unbounded token cost/latency as a goal accumulates tasks over time. 50 is a generous-but-bounded ceiling; revisit only if a real goal needs more context than that to get useful suggestions.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [09-ai-architecture.md](09-ai-architecture.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 6.
+
+## 2026-07-18 — Phase 7 implementation-level decisions
+
+**Decision (Phase 7's scope was self-defined, not inherited):** Unlike every prior phase, `16-roadmap.md` had no PRD entry, ADR, or exit-criteria text for "Analytics" beyond the bare phase name. The scope chosen — read-only aggregate views over Phases 2-6's existing data (status breakdowns, completion velocity, time tracking) — was derived from what data the product already has plus the user's literal exit criterion ("metrics live in `dashboard/METRICS.md`").
+**Alternatives considered:** A broader analytics platform (custom report builder, exportable data, charting library); deferring scope entirely and asking the user to specify features.
+**Reason:** Sustainable Complexity (Principle 8) — one well-built read layer over existing data, proportional to every prior phase's single-domain-slice pattern, not a speculative platform build. The literal exit criterion gave an unambiguous, checkable definition of "done" without needing further scoping input.
+
+**Decision (live query aggregation, not a materialized summary table or scheduled job):** `SummaryService`/`VelocityService`/`TimeTrackingService` all compute their results at request time via Prisma `groupBy`/`aggregate`/bounded `findMany`, never a precomputed rollup.
+**Alternatives considered:** A nightly job populating a denormalized `analytics_summary` table; an incremental counter updated on every write.
+**Reason:** Per-user data volumes are small; a summary table or job would be speculative infrastructure for a load that doesn't exist yet (Sustainable Complexity, Principle 8), and would introduce a staleness/consistency concern (when was it last computed?) that live queries don't have. Revisit only if real usage data shows query cost becoming a problem — tracked in [27-backlog.md](27-backlog.md).
+
+**Decision (analytics queries Prisma directly, bypassing `@pee/planning`/`@pee/execution`/`@pee/ai`):** `@pee/analytics` depends only on `@pee/database`/`@pee/auth`/`@pee/types`, not on any other domain module.
+**Alternatives considered:** Route every read through the owning module's public service (e.g. call `GoalsService`/`TasksService` per row) to strictly follow the "cross-module reads go through the public service API" rule from Phase 3.
+**Reason:** That rule protects *authorization decisions* from being bypassed via raw Prisma access. Every analytics query is already scoped by `ownerId` from the JWT before any join runs, and no authorization decision is made from the joined data — exactly the documented carve-out Phase 4's `listActiveSessions` established. Routing an aggregate query through N per-row service calls would also be a real performance regression for no safety benefit.
+
+**Decision (bounded date-range window on every query, no unbounded full-history scan):** `VelocityQueryDto.days` is capped 1-90 (default 30); `TimeTrackingQueryDto.sinceDays` is capped 1-365 (default 90).
+**Reason:** Directly serves the "production-level stable system" requirement — without a cap, a long-lived account's query cost would grow unbounded with account age. Mirrors Phase 6's bounded-prompt precedent (cap input size at the point it's read, not just at display time).
+
+**Decision (one supporting index, no new Prisma model):** Added `@@index([ownerId, createdAt])` to `ExecutionEvent`; no new table was introduced this phase.
+**Reason:** Analytics is a read layer over data Phases 2-6 already model — inventing a new domain entity to represent "a metric" would be modeling a view as if it were data. The one schema change reflects the velocity endpoint's actual query shape (scan by owner, filter by date range), which the existing single-column `[ownerId]` index doesn't serve as well at scale.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [16-roadmap.md](16-roadmap.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 7.

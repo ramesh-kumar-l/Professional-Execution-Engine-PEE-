@@ -217,6 +217,7 @@ model ExecutionEvent {
   @@index([ownerId])
   @@index([goalId])
   @@index([taskId])
+  @@index([ownerId, createdAt])
   @@map("execution_events")
 }
 

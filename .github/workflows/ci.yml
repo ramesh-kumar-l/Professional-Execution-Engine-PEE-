@@ -84,6 +84,9 @@ jobs:
       - name: AI service e2e tests
         run: npm run test:e2e -w @pee/ai
 
+      - name: Analytics service e2e tests
+        run: npm run test:e2e -w @pee/analytics
+
       - name: Local-client e2e tests (SQLite <-> Postgres round trip)
         run: npm run test:e2e -w @pee/local-client
 

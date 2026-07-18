@@ -12,7 +12,7 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 6 endpoints live, 2026-07-18.**
+**Phase 7 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
@@ -84,6 +84,16 @@ All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop
 | POST | `/ai/recommendations/:id/dismiss` | access token (Bearer) | Marks the recommendation `DISMISSED`. Creates nothing. 409 if not `PENDING`. |
 
 **Human approval is a structural gate, not a UI convention:** no `Task` row is ever created by the generate call itself — only `accept` writes to `Task`, and only for the specific suggestions the caller selected. Every suggestion carries `reason`/`confidence`/`alternatives`; every recommendation carries the `context` the model actually saw — the explainability fields (§100) are part of the response shape, not optional. See [08-backend-guidelines.md](08-backend-guidelines.md) and [09-ai-architecture.md](09-ai-architecture.md) for the provider abstraction and failure-handling mechanics.
+
+## Current endpoints (`/services/analytics`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/analytics/summary` | access token (Bearer) | Project/Goal/Task status breakdowns, total time tracked across completed `TaskExecutionSession`s, and AI-recommendation adoption (`byStatus` + acceptance rate, `null` until anything's been responded to). |
+| GET | `/analytics/velocity` | access token (Bearer) | `?days=1-90` (default 30). One bucket per day: task/goal completions sourced from `ExecutionEvent`. |
+| GET | `/analytics/time-tracking` | access token (Bearer) | `?groupBy=goal\|project` (default `goal`), `?sinceDays=1-365` (default 90). Total tracked seconds summed per goal or project. |
+
+All three are read-only, scoped by `ownerId` from the JWT (never a request parameter), and bounded by an explicit date-range cap — no query ever scans a caller's full history unbounded. See [08-backend-guidelines.md](08-backend-guidelines.md) for the read-only-direct-Prisma carve-out this module relies on.
 
 ## Token custody (BFF pattern)
 
