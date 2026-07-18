@@ -2,7 +2,19 @@
 
 Source of truth for process: `SYSTEM_PROMPT.md` §31, §87 (`System_Prompt/Part2.md`, `Part5.md`). Updated at the end of every session; live draft during a session lives in `session/session-handoff.md`.
 
-## Latest handoff — 2026-07-18 (Phase 10)
+## Latest handoff — 2026-07-19 (Post-Phase-10 Production Hardening, P0)
+
+**Trigger:** A full production-hardening audit (`System_Prompt/Part1.md`'s role, four independent verification passes across the whole repo) scored overall readiness 4/10 — "not approved for production release" — on two Critical findings (CI's Prisma migration step silently no-op'd; no deployment target existed) plus 8 High findings. The user's explicit instruction was "continue with P0, implementation... make sure final developed product is a scalable and production level stable system," naming P0 specifically.
+
+**Completed work — all 7 P0 items fixed:** (1) Generated the first-ever Prisma migration (`packages/database/prisma/migrations/20260719000000_init/`) via `prisma migrate diff --from-empty` (works without a live database) — CI's `migrate deploy` now has a real schema to apply. (2) Built `infrastructure/docker/api.Dockerfile` + `web.Dockerfile` (multi-stage; `apps/web` gained `next.config.js`'s `output: 'standalone'`) + `docker-compose.prod.yml` + a full runbook in `15-deployment.md` (previously "TBD"). (3) New `packages/logging` (`@pee/logging`) package — `StructuredLogger` (JSON-line logs), `AsyncLocalStorage`-based request/user-id correlation, wired globally into `services/api`. (4) `AbortController`-based request timeouts added to every client→API call across `apps/web/lib/*-api-client.ts` (new `fetch-with-timeout.ts`), `apps/desktop`'s `AuthSession`, and `apps/mobile`'s `MobileAuthSession` — the latter two cover all of both native clients' online traffic since `remote-ipc.ts`/`remote-client.ts` already funnel through them. (5) `/health` now runs a real Prisma `SELECT 1` (was a hardcoded `{status:'ok'}`) and `main.ts` calls `app.enableShutdownHooks()` for graceful `SIGTERM` draining. (6) `services/api/src/env.validation.ts` — a Joi schema validating every required env var at boot. (7) Closed the SSO gaps: `.env.example` now documents all 11 `SSO_*` vars actually referenced in code (previously zero), and fixed a genuine secret-reuse bug — `SamlBridgeService.secret()` no longer falls back from `SSO_SAML_BRIDGE_SECRET` to `JWT_ACCESS_SECRET` to `''`; it now fails closed with a 503, with a regression test proving the other secret is never even read.
+
+**Verification:** `npm run build`/`typecheck`/`lint`/`test` all clean across the entire workspace after every change. Test suite grew from 319 to 328 (7 new in `@pee/logging`, the health spec rewritten to 2 real tests, 1 new SAML fail-closed regression test). **Honest caveats, same class as every prior phase's Docker/device gaps:** the new migration has not been applied against a live Postgres in this sandbox (still no Docker); neither Dockerfile has been through a real `docker build`/`docker run` (every command inside each was instead verified via its non-Docker equivalent — `next build --output=standalone` was actually run and its output inspected, confirming `apps/web`'s image needs zero `@pee/*` runtime packages since every import is `import type`).
+
+**Not actioned this session:** the audit's P1 list (`Goal.list()` N+1, unbatched sync push, missing composite indexes, no dependency-vulnerability scanning, no API versioning decision, `/organizations` pagination inconsistency, thin README) — added to `27-backlog.md` as "P1 hardening items from the 2026-07-18 production-hardening audit," not yet fixed.
+
+Updated `12-security.md`, `15-deployment.md`, `17-phase-status.md`, `18-current-state.md`, `19-active-work.md`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, plus `session/*` and the external persistent-memory file.
+
+## Handoff — 2026-07-18 (Phase 10)
 
 **Current phase:** 10 — Enterprise. **Complete — the last phase currently defined.**
 
@@ -20,4 +32,4 @@ Source of truth for process: `SYSTEM_PROMPT.md` §31, §87 (`System_Prompt/Part2
 
 **Recommended next task:** No next phase to implement. Highest-value next steps, in an environment with the right infrastructure: (1) Docker + Postgres — generate/apply the first Prisma migration, run every Docker-dependent e2e suite including the two new Phase 10 ones; (2) a mobile device/emulator — run `apps/mobile`'s Detox e2e; (3) a real or locally-mocked IdP — exercise the full OIDC/SAML browser login round-trip; (4) real AI vendor credentials — a live smoke test of `services/ai`; (5) revisit local SQLite file-at-rest encryption before either native client reaches real users. Absent new direction, this project's remaining work lives entirely in the backlog, not in a "next phase."
 
-**Memory-bank files to load next session:** `00-project-vision.md`, `17-phase-status.md`, `18-current-state.md`, `19-active-work.md`, `29-next-task.md` (standard priority order, `claude/STARTUP.md`).
+**Memory-bank files to load next session (as of the 2026-07-18 Phase 10 handoff; superseded by the 2026-07-19 hardening handoff above for current state):** `00-project-vision.md`, `17-phase-status.md`, `18-current-state.md`, `19-active-work.md`, `29-next-task.md` (standard priority order, `claude/STARTUP.md`).

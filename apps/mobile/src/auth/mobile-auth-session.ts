@@ -2,9 +2,21 @@ import * as SecureStore from 'expo-secure-store';
 import type { AuthTokens, UserProfile } from '@pee/types';
 
 const REFRESH_TOKEN_KEY = 'pee_refresh_token';
+const REQUEST_TIMEOUT_MS = 10_000;
 
 export function resolveApiBaseUrl(): string {
   return process.env.EXPO_PUBLIC_PEE_API_URL ?? 'http://localhost:3001';
+}
+
+/** A stuck backend must not hang the app indefinitely — every call below goes through this. */
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -46,24 +58,28 @@ export class MobileAuthSession {
   }
 
   async login(email: string, password: string): Promise<{ user: UserProfile } | { error: string }> {
-    const res = await fetch(`${this.apiBaseUrl}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    if (!res.ok) return { error: 'Invalid email or password.' };
+    try {
+      const res = await fetchWithTimeout(`${this.apiBaseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) return { error: 'Invalid email or password.' };
 
-    const body = (await res.json()) as { user: UserProfile; tokens: AuthTokens };
-    this.accessToken = body.tokens.accessToken;
-    this.user = body.user;
-    await this.persistRefreshToken(body.tokens.refreshToken);
-    return { user: body.user };
+      const body = (await res.json()) as { user: UserProfile; tokens: AuthTokens };
+      this.accessToken = body.tokens.accessToken;
+      this.user = body.user;
+      await this.persistRefreshToken(body.tokens.refreshToken);
+      return { user: body.user };
+    } catch {
+      return { error: 'Could not reach the server. Please check your connection and try again.' };
+    }
   }
 
   async logout(): Promise<void> {
     const refreshToken = await this.readStoredRefreshToken();
     if (refreshToken) {
-      await fetch(`${this.apiBaseUrl}/auth/logout`, {
+      await fetchWithTimeout(`${this.apiBaseUrl}/auth/logout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -78,7 +94,7 @@ export class MobileAuthSession {
    *  refreshed access token on a 401, instead of every screen reimplementing that. */
   async authedFetch(pathAndQuery: string, init: RequestInit = {}): Promise<Response> {
     const doFetch = (token: string) =>
-      fetch(`${this.apiBaseUrl}${pathAndQuery}`, {
+      fetchWithTimeout(`${this.apiBaseUrl}${pathAndQuery}`, {
         ...init,
         headers: { ...init.headers, 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
@@ -95,22 +111,30 @@ export class MobileAuthSession {
   }
 
   private async refresh(refreshToken: string): Promise<AuthTokens | null> {
-    const res = await fetch(`${this.apiBaseUrl}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken }),
-    });
-    if (!res.ok) return null;
-    const tokens = (await res.json()) as AuthTokens;
-    this.accessToken = tokens.accessToken;
-    await this.persistRefreshToken(tokens.refreshToken);
-    return tokens;
+    try {
+      const res = await fetchWithTimeout(`${this.apiBaseUrl}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return null;
+      const tokens = (await res.json()) as AuthTokens;
+      this.accessToken = tokens.accessToken;
+      await this.persistRefreshToken(tokens.refreshToken);
+      return tokens;
+    } catch {
+      return null;
+    }
   }
 
   private async fetchProfile(accessToken: string): Promise<UserProfile | null> {
-    const res = await fetch(`${this.apiBaseUrl}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    if (!res.ok) return null;
-    return (await res.json()) as UserProfile;
+    try {
+      const res = await fetchWithTimeout(`${this.apiBaseUrl}/auth/me`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      if (!res.ok) return null;
+      return (await res.json()) as UserProfile;
+    } catch {
+      return null;
+    }
   }
 
   private async persistRefreshToken(refreshToken: string): Promise<void> {

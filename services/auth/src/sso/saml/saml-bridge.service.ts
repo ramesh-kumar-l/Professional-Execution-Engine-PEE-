@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
@@ -70,7 +70,16 @@ export class SamlBridgeService {
     }
   }
 
+  /**
+   * Fails closed on purpose: this secret signs the bridge's short-lived tokens, so
+   * silently reusing JWT_ACCESS_SECRET (a different trust domain) would let a bug in
+   * either domain leak into the other. No fallback — SAML routes 503 until it's set.
+   */
   private secret(): string {
-    return this.config.get<string>('SSO_SAML_BRIDGE_SECRET') ?? this.config.get<string>('JWT_ACCESS_SECRET') ?? '';
+    const secret = this.config.get<string>('SSO_SAML_BRIDGE_SECRET');
+    if (!secret) {
+      throw new ServiceUnavailableException('SAML SSO is not configured (missing SSO_SAML_BRIDGE_SECRET)');
+    }
+    return secret;
   }
 }

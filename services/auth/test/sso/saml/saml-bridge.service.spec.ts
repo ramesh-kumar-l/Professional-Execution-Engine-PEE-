@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { SamlBridgeService } from '../../../src/sso/saml/saml-bridge.service';
@@ -48,6 +48,20 @@ describe('SamlBridgeService', () => {
       const token = service.issueAccessToken(identity);
       expect(service.decodeAccessToken(token)).toEqual(expect.objectContaining(identity));
       expect(service.decodeAccessToken(token)).toEqual(expect.objectContaining(identity)); // decoding twice is fine, unlike the one-time code
+    });
+  });
+
+  describe('missing SSO_SAML_BRIDGE_SECRET', () => {
+    it('fails closed with 503 instead of falling back to another secret', () => {
+      const unconfigured = { get: jest.fn().mockReturnValue(undefined) } as unknown as jest.Mocked<ConfigService>;
+      const unconfiguredService = new SamlBridgeService(new JwtService({}), unconfigured);
+
+      expect(() => unconfiguredService.issueOneTimeCode({ nameId: 'n', email: 'e@example.com' })).toThrow(
+        ServiceUnavailableException,
+      );
+      // Proves there's no silent reuse of any other configured secret (e.g. JWT_ACCESS_SECRET).
+      expect(unconfigured.get).toHaveBeenCalledWith('SSO_SAML_BRIDGE_SECRET');
+      expect(unconfigured.get).not.toHaveBeenCalledWith('JWT_ACCESS_SECRET');
     });
   });
 });
