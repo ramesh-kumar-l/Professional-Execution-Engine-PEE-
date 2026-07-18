@@ -1,11 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@pee/database';
 import { ProjectsService } from '@pee/projects';
+import { GOAL_STATUS_CHANGED_EVENT } from '@pee/types';
 import { GoalsService } from '../src/goals/goals.service';
 
 describe('GoalsService', () => {
   let prisma: jest.Mocked<any>;
   let projectsService: jest.Mocked<any>;
+  let eventEmitter: jest.Mocked<any>;
   let service: GoalsService;
 
   const ownerId = 'owner-1';
@@ -30,7 +33,12 @@ describe('GoalsService', () => {
       task: { count: jest.fn().mockResolvedValue(0) },
     };
     projectsService = { getOne: jest.fn().mockResolvedValue({ id: projectId, ownerId }) };
-    service = new GoalsService(prisma as unknown as PrismaService, projectsService as unknown as ProjectsService);
+    eventEmitter = { emit: jest.fn() };
+    service = new GoalsService(
+      prisma as unknown as PrismaService,
+      projectsService as unknown as ProjectsService,
+      eventEmitter as unknown as EventEmitter2,
+    );
   });
 
   describe('create', () => {
@@ -94,6 +102,22 @@ describe('GoalsService', () => {
         where: { id: goal.id },
         data: { status: 'COMPLETED', completedAt: expect.any(Date) },
       });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
+        ownerId,
+        goalId: goal.id,
+        projectId,
+        fromStatus: 'NOT_STARTED',
+        toStatus: 'COMPLETED',
+      });
+    });
+
+    it('does not emit when status is re-sent unchanged', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.goal.update.mockResolvedValue(goal);
+
+      await service.update(ownerId, goal.id, { status: 'NOT_STARTED' });
+
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 
@@ -102,6 +126,20 @@ describe('GoalsService', () => {
       prisma.goal.findUnique.mockResolvedValue({ ...goal, status: 'ARCHIVED' });
       await service.archive(ownerId, goal.id);
       expect(prisma.goal.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('archives a goal and emits a status-changed event', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      await service.archive(ownerId, goal.id);
+      expect(prisma.goal.update).toHaveBeenCalledWith({ where: { id: goal.id }, data: { status: 'ARCHIVED' } });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
+        ownerId,
+        goalId: goal.id,
+        projectId,
+        fromStatus: 'NOT_STARTED',
+        toStatus: 'ARCHIVED',
+      });
     });
   });
 
@@ -111,6 +149,7 @@ describe('GoalsService', () => {
       prisma.task.count.mockResolvedValue(0);
       await service.recalculateProgress(goal.id);
       expect(prisma.goal.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('never auto-transitions an archived goal', async () => {
@@ -118,6 +157,7 @@ describe('GoalsService', () => {
       await service.recalculateProgress(goal.id);
       expect(prisma.task.count).not.toHaveBeenCalled();
       expect(prisma.goal.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('moves to IN_PROGRESS when some but not all tasks are done', async () => {
@@ -129,6 +169,13 @@ describe('GoalsService', () => {
       expect(prisma.goal.update).toHaveBeenCalledWith({
         where: { id: goal.id },
         data: { status: 'IN_PROGRESS', completedAt: null },
+      });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
+        ownerId,
+        goalId: goal.id,
+        projectId,
+        fromStatus: 'NOT_STARTED',
+        toStatus: 'IN_PROGRESS',
       });
     });
 
@@ -142,6 +189,13 @@ describe('GoalsService', () => {
         where: { id: goal.id },
         data: { status: 'COMPLETED', completedAt: expect.any(Date) },
       });
+      expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
+        ownerId,
+        goalId: goal.id,
+        projectId,
+        fromStatus: 'IN_PROGRESS',
+        toStatus: 'COMPLETED',
+      });
     });
 
     it('does not update when the target status matches the current status', async () => {
@@ -151,6 +205,7 @@ describe('GoalsService', () => {
       await service.recalculateProgress(goal.id);
 
       expect(prisma.goal.update).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
   });
 });

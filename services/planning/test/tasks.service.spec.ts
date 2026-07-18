@@ -1,11 +1,14 @@
 import { NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@pee/database';
+import { TASK_STATUS_CHANGED_EVENT } from '@pee/types';
 import { GoalsService } from '../src/goals/goals.service';
 import { TasksService } from '../src/tasks/tasks.service';
 
 describe('TasksService', () => {
   let prisma: jest.Mocked<any>;
   let goalsService: jest.Mocked<any>;
+  let eventEmitter: jest.Mocked<any>;
   let service: TasksService;
 
   const ownerId = 'owner-1';
@@ -29,7 +32,12 @@ describe('TasksService', () => {
       task: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     };
     goalsService = { getOne: jest.fn().mockResolvedValue({ id: goalId, ownerId }), recalculateProgress: jest.fn() };
-    service = new TasksService(prisma as unknown as PrismaService, goalsService as unknown as GoalsService);
+    eventEmitter = { emit: jest.fn() };
+    service = new TasksService(
+      prisma as unknown as PrismaService,
+      goalsService as unknown as GoalsService,
+      eventEmitter as unknown as EventEmitter2,
+    );
   });
 
   describe('create', () => {
@@ -42,6 +50,13 @@ describe('TasksService', () => {
         data: { goalId, ownerId, title: task.title, description: undefined, order: 0 },
       });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
+        ownerId,
+        taskId: task.id,
+        goalId,
+        fromStatus: null,
+        toStatus: 'TODO',
+      });
     });
 
     it('propagates 404 when the goal is not owned by the caller', async () => {
@@ -76,6 +91,17 @@ describe('TasksService', () => {
 
       expect(prisma.task.update).toHaveBeenCalledWith({ where: { id: task.id }, data: { title: 'Renamed' } });
       expect(goalsService.recalculateProgress).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('does not recalculate or emit when status is re-sent unchanged', async () => {
+      prisma.task.findUnique.mockResolvedValue(task);
+      prisma.task.update.mockResolvedValue(task);
+
+      await service.update(ownerId, task.id, { status: 'TODO' });
+
+      expect(goalsService.recalculateProgress).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('sets completedAt and recalculates progress when status moves to DONE', async () => {
@@ -89,6 +115,13 @@ describe('TasksService', () => {
         data: { status: 'DONE', completedAt: expect.any(Date) },
       });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
+        ownerId,
+        taskId: task.id,
+        goalId,
+        fromStatus: 'TODO',
+        toStatus: 'DONE',
+      });
     });
 
     it('throws NotFoundException when the task belongs to someone else', async () => {
@@ -103,6 +136,7 @@ describe('TasksService', () => {
       await service.archive(ownerId, task.id);
       expect(prisma.task.update).not.toHaveBeenCalled();
       expect(goalsService.recalculateProgress).not.toHaveBeenCalled();
+      expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
     it('archives a task and recalculates the parent goal', async () => {
@@ -110,6 +144,13 @@ describe('TasksService', () => {
       await service.archive(ownerId, task.id);
       expect(prisma.task.update).toHaveBeenCalledWith({ where: { id: task.id }, data: { status: 'ARCHIVED' } });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
+        ownerId,
+        taskId: task.id,
+        goalId,
+        fromStatus: 'TODO',
+        toStatus: 'ARCHIVED',
+      });
     });
   });
 });

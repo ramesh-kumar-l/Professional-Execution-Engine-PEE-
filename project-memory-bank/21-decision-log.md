@@ -130,3 +130,21 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Matches `Project`'s existing pattern; keeps every ownership check an O(1) `findUnique`, and each entity's authorization doesn't depend on its parent's row still existing in a particular shape.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 3.
+
+## 2026-07-18 — Phase 4 implementation-level decisions
+
+**Decision (event-driven decoupling via `@nestjs/event-emitter`, not deeper reuse-chaining):** `@pee/planning`'s `TasksService`/`GoalsService` `emit()` plain fact events (`task.status_changed`, `goal.status_changed`); `@pee/execution` subscribes via `@OnEvent` and separately depends on `PlanningModule` one-directionally for its own start/complete logic.
+**Alternatives considered:** Have `@pee/execution` call into planning only, with no logging guarantee for the pre-existing generic `PATCH` routes; or make `@pee/planning` depend on `@pee/execution` directly to log inline.
+**Reason:** The logging hook has to live inside `TasksService`/`GoalsService` to see every status-changing code path (not just the new dedicated endpoints), but `@pee/execution` also needs to call *into* `@pee/planning` — a direct two-way module dependency would be circular. `@nestjs/event-emitter` lets planning emit with zero knowledge of who's listening, avoiding the cycle while still guaranteeing unconditional observability.
+
+**Decision (`ExecutionEvent` is append-only, no `updatedAt`/`version`):** deviates from the blanket per-table convention (`adr/0003`) that every syncable table gets those two columns.
+**Reason:** The convention exists to support a future sync-merge protocol on *mutable* rows; a log entry is never mutated after insert, so those columns would carry no meaning. `TaskExecutionSession` keeps them since a session row is genuinely mutated once (on complete).
+
+**Decision (read-path carve-out: `listActiveSessions` uses a Prisma `include`, not per-row service round-trips):** display-only `Task.title`/`Goal.title` are read via Prisma's relational `include` rather than calling `TasksService.getOne`/`GoalsService.getOne` once per open session.
+**Alternatives considered:** Loop over sessions and call the owning service's `getOne` for each, to stay strictly within the "cross-module reads go through the public service API" rule established in Phase 3.
+**Reason:** That rule exists to protect *ownership/authorization decisions* from being bypassed via raw Prisma access. Here, the row is already scoped to the caller via `TaskExecutionSession.ownerId` before the join runs — no authorization decision is made from the joined `Task`/`Goal` fields, only display text. Treating every read join as a rule violation would make simple aggregation views (a real product need) disproportionately expensive.
+
+**Decision (time-tracking sessions are opt-in; event logging is not):** a `TaskExecutionSession` is only created via the dedicated `/tasks/:taskId/execution/start` endpoint; marking a task done via the pre-existing generic `PATCH /tasks/:id` still produces an `ExecutionEvent` (via the emitted event) but no session/duration data.
+**Reason:** Forcing every task completion through a timer would change existing Phase 3 UI behavior (the plain "mark done" checkbox) for a feature (time tracking) the exit criteria didn't ask for. Observability (the event trail) is what the exit criteria required unconditionally; time-tracking is an added capability that's reasonable to make opt-in.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 4.

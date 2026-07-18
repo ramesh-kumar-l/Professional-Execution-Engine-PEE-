@@ -78,6 +78,27 @@ Priority: Medium.
 Potential dependencies: Same permissions/roles model gap noted for multi-user project sharing.
 Estimated value: Needed once teams (not just individuals) use the product.
 
+### Task execution session pause/resume
+Description: Let a `TaskExecutionSession` be paused and resumed multiple times instead of a single continuous start→complete span.
+Reason: Out of scope for Phase 4's exit criteria ("execution loop observable end-to-end"); a single-span session already makes the loop observable — multi-pause timers are a genuine UX enhancement but add real complexity (which session is "current," how duration sums across gaps) with no consuming feature requiring it yet.
+Priority: Low.
+Potential dependencies: None blocking.
+Estimated value: More accurate time tracking for interrupted work.
+
+### Cross-service distributed tracing / correlation IDs
+Description: Propagate a shared trace/correlation ID across every service a request touches, per `docs/standards/observability-and-logging.md`'s "every important workflow must be traceable end-to-end" standard.
+Reason: This is a repo-wide, cross-cutting concern — no module (auth, projects, planning, or execution) has it yet. Phase 4's `ExecutionEvent` log solves *product-level* observability (the goal→task loop); infra-level request tracing is a separate, larger initiative better done once across the whole stack than piecemeal per phase.
+Priority: Medium.
+Potential dependencies: A tracing library/APM choice (OpenTelemetry is the natural default).
+Estimated value: Debuggability once the system has more than a couple of services in the request path.
+
+### General domain-entity audit trail for non-status-change actions
+Description: Audit-log `Project`/`Goal`/`Task` create/rename/description-edit actions — `ExecutionEvent` (Phase 4) only covers status transitions on `Goal`/`Task`, not `Project` at all and not non-status field edits.
+Reason: Building this before a concrete compliance/debugging need identifies what to capture would be speculative — same reasoning as the original Phase 2 "domain-entity audit trail" entry, now narrowed since Phase 4 closed the status-transition slice of it.
+Priority: Medium.
+Potential dependencies: None blocking; could reuse `ExecutionEvent`'s shape or a separate generic `AuditLog` table.
+Estimated value: Full traceability (not just status changes) for support/compliance once real users' data is at stake.
+
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.
 Reason: Deliberately not force-upgraded mid-Phase-1 to avoid pulling in untested majors without dedicated regression testing. See [20-known-issues.md](20-known-issues.md), [21-decision-log.md](21-decision-log.md).

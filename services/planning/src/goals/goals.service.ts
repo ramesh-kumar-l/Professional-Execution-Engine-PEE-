@@ -1,7 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Goal, Prisma, PrismaService } from '@pee/database';
 import { ProjectsService } from '@pee/projects';
-import { GoalProgress, GoalResponse, GoalStatus, PaginatedResponse } from '@pee/types';
+import {
+  GOAL_STATUS_CHANGED_EVENT,
+  GoalProgress,
+  GoalResponse,
+  GoalStatus,
+  PaginatedResponse,
+} from '@pee/types';
 import { CreateGoalDto } from './dto/create-goal.dto';
 import { ListGoalsQueryDto } from './dto/list-goals-query.dto';
 import { UpdateGoalDto } from './dto/update-goal.dto';
@@ -11,6 +18,7 @@ export class GoalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectsService: ProjectsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(ownerId: string, projectId: string, dto: CreateGoalDto): Promise<GoalResponse> {
@@ -67,7 +75,7 @@ export class GoalsService {
   }
 
   async update(ownerId: string, id: string, dto: UpdateGoalDto): Promise<GoalResponse> {
-    await this.findOwnedOrThrow(ownerId, id);
+    const existing = await this.findOwnedOrThrow(ownerId, id);
     const goal = await this.prisma.goal.update({
       where: { id },
       data: {
@@ -79,6 +87,15 @@ export class GoalsService {
           : {}),
       },
     });
+    if (dto.status !== undefined && dto.status !== existing.status) {
+      this.eventEmitter.emit(GOAL_STATUS_CHANGED_EVENT, {
+        ownerId,
+        goalId: id,
+        projectId: existing.projectId,
+        fromStatus: existing.status,
+        toStatus: dto.status,
+      });
+    }
     return this.toResponse(goal);
   }
 
@@ -88,6 +105,13 @@ export class GoalsService {
       return;
     }
     await this.prisma.goal.update({ where: { id }, data: { status: 'ARCHIVED' } });
+    this.eventEmitter.emit(GOAL_STATUS_CHANGED_EVENT, {
+      ownerId,
+      goalId: id,
+      projectId: goal.projectId,
+      fromStatus: goal.status,
+      toStatus: 'ARCHIVED',
+    });
   }
 
   /** Called by TasksService after any task mutation — this is what closes the plan/execution loop. */
@@ -112,6 +136,13 @@ export class GoalsService {
     await this.prisma.goal.update({
       where: { id: goalId },
       data: { status: targetStatus, completedAt: targetStatus === 'COMPLETED' ? new Date() : null },
+    });
+    this.eventEmitter.emit(GOAL_STATUS_CHANGED_EVENT, {
+      ownerId: goal.ownerId,
+      goalId,
+      projectId: goal.projectId,
+      fromStatus: goal.status,
+      toStatus: targetStatus,
     });
   }
 

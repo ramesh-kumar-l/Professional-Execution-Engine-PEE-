@@ -12,7 +12,7 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 3 endpoints live, 2026-07-18.**
+**Phase 4 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
@@ -53,6 +53,17 @@ All `/projects` routes are `JwtAuthGuard`-protected — there are no anonymous p
 | DELETE | `/tasks/:id` | access token (Bearer) | Soft-delete (`status = ARCHIVED`), 204, idempotent; also triggers the parent goal's progress recalculation. |
 
 All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop behavior:** every task mutation that can change status counts (create, status update, archive) recalculates the parent goal's `status` and `progress` — a client never has to call a separate "recompute" endpoint; reading a goal always reflects current task state.
+
+## Current endpoints (`/services/execution`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/tasks/:taskId/execution/start` | access token (Bearer) | Opens a `TaskExecutionSession`, sets the task to `IN_PROGRESS` (reuses `TasksService.update`). 409 if a session is already open for this task. |
+| POST | `/tasks/:taskId/execution/complete` | access token (Bearer) | Closes the open session (records `durationSeconds`), sets the task to `DONE` (reuses `TasksService.update` — this is also what re-triggers the Phase 3 goal-progress rollup). 404 if no session is open. |
+| GET | `/goals/:goalId/activity` | access token (Bearer) | Paginated, most-recent-first timeline of `ExecutionEvent` rows for the goal. 404 if the goal isn't owned by the caller. |
+| GET | `/execution/active` | access token (Bearer) | Every currently-open `TaskExecutionSession` for the caller, across every project/goal — the end-to-end "what's running right now" view. |
+
+**Events are unconditional, not tied to the start/complete endpoints:** `@pee/planning`'s `TasksService`/`GoalsService` emit `task.status_changed`/`goal.status_changed` (via `@nestjs/event-emitter`) on *every* status-changing path, including the pre-existing generic `PATCH /tasks/:id` and `PATCH /goals/:id`. `@pee/execution` listens and persists an `ExecutionEvent` row regardless of which endpoint caused the change — a client can never bypass the activity log. Only the *time-tracking* session is opt-in (only created via the dedicated start/complete endpoints).
 
 ## Token custody (BFF pattern)
 

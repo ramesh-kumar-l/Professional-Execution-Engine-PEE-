@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, PrismaService, Task } from '@pee/database';
-import { PaginatedResponse, TaskResponse } from '@pee/types';
+import { PaginatedResponse, TASK_STATUS_CHANGED_EVENT, TaskResponse } from '@pee/types';
 import { GoalsService } from '../goals/goals.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
@@ -11,6 +12,7 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly goalsService: GoalsService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(ownerId: string, goalId: string, dto: CreateTaskDto): Promise<TaskResponse> {
@@ -19,6 +21,13 @@ export class TasksService {
       data: { goalId, ownerId, title: dto.title, description: dto.description, order: dto.order ?? 0 },
     });
     await this.goalsService.recalculateProgress(goalId);
+    this.eventEmitter.emit(TASK_STATUS_CHANGED_EVENT, {
+      ownerId,
+      taskId: task.id,
+      goalId,
+      fromStatus: null,
+      toStatus: task.status,
+    });
     return this.toResponse(task);
   }
 
@@ -69,8 +78,15 @@ export class TasksService {
           : {}),
       },
     });
-    if (dto.status !== undefined) {
+    if (dto.status !== undefined && dto.status !== existing.status) {
       await this.goalsService.recalculateProgress(existing.goalId);
+      this.eventEmitter.emit(TASK_STATUS_CHANGED_EVENT, {
+        ownerId,
+        taskId: id,
+        goalId: existing.goalId,
+        fromStatus: existing.status,
+        toStatus: dto.status,
+      });
     }
     return this.toResponse(task);
   }
@@ -82,6 +98,13 @@ export class TasksService {
     }
     await this.prisma.task.update({ where: { id }, data: { status: 'ARCHIVED' } });
     await this.goalsService.recalculateProgress(task.goalId);
+    this.eventEmitter.emit(TASK_STATUS_CHANGED_EVENT, {
+      ownerId,
+      taskId: id,
+      goalId: task.goalId,
+      fromStatus: task.status,
+      toStatus: 'ARCHIVED',
+    });
   }
 
   private async findOwnedOrThrow(ownerId: string, id: string): Promise<Task> {

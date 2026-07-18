@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { completeTaskExecution, startTaskExecution } from '@/lib/execution-api-client';
 import { archiveGoal, archiveTask, createTask, getGoal, updateGoal, updateTask } from '@/lib/planning-api-client';
 import type { GoalFormState } from '@/components/GoalForm';
 import type { TaskFormState } from '@/components/TaskForm';
@@ -66,6 +67,22 @@ export async function archiveTaskAction(goalId: string, taskId: string): Promise
   const session = await auth();
   if (session?.accessToken) {
     await archiveTask(session.accessToken, taskId);
+  }
+  revalidatePath(`/dashboard/goals/${goalId}`);
+}
+
+export async function startTaskAction(goalId: string, taskId: string): Promise<void> {
+  const session = await auth();
+  if (session?.accessToken) {
+    await startTaskExecution(session.accessToken, taskId);
+  }
+  revalidatePath(`/dashboard/goals/${goalId}`);
+}
+
+export async function completeTaskAction(goalId: string, taskId: string): Promise<void> {
+  const session = await auth();
+  if (session?.accessToken) {
+    await completeTaskExecution(session.accessToken, taskId);
   }
   revalidatePath(`/dashboard/goals/${goalId}`);
 }

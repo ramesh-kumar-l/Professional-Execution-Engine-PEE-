@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 3 (Planning Engine) written and implemented, 2026-07-18.**
+**Status: Phase 4 (Execution Engine) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -74,6 +74,31 @@
   - [x] Every new file stays under ~300 lines (largest is `goals.service.ts` at 151 lines)
   - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-2)
   - [ ] Task dependencies/scheduling, AI-assisted plan generation, multi-user goal collaboration — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 4 — Execution Engine
+
+- **Objective:** Make the goal→task execution loop observable end-to-end — not just closed at the data level (Phase 3), but genuinely *executed* (a real start/complete timer per task) and *visible* (an unconditional event trail plus a live "what's running right now" dashboard).
+- **Current state:** Phase 3 closes the loop silently — task completion rolls up into goal progress, but there's no record of *when* work happened or *what* changed, and no way to see a task actually in progress versus just flagged.
+- **Desired state:** A `TaskExecutionSession` (start/stop timer, one open session per task) and an append-only `ExecutionEvent` log capturing every task/goal status transition, regardless of entry point (dedicated start/complete endpoints or the existing generic `PATCH`).
+- **Required APIs:** `POST /tasks/:taskId/execution/start`, `POST /tasks/:taskId/execution/complete`, `GET /goals/:goalId/activity`, `GET /execution/active` — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** New `TaskExecutionSession` and `ExecutionEvent` tables (`ExecutionEventType` enum) — see [10-database-design.md](10-database-design.md).
+- **UI impact:** Start/Complete controls and an activity timeline on `/dashboard/goals/[id]`; new `/dashboard/execution` global "Active Work" dashboard, linked from `/dashboard`.
+- **AI impact:** None.
+- **Testing strategy:** Unit (`TaskSessionsService`/`ExecutionEventsService`, mocked Prisma + mocked `TasksService`), extended `@pee/planning` unit tests asserting `EventEmitter2.emit` calls, integration/e2e (Supertest against a real Postgres, asserting the full start→complete→activity→active-list flow), frontend Playwright e2e for the observable start/complete flow.
+- **Migration requirements:** Adds `TaskExecutionSession`/`ExecutionEvent` to the existing Prisma schema; same unresolved Docker-dependent no-migration-ever-generated gap carried forward from Phases 1-3 (see [20-known-issues.md](20-known-issues.md)).
+- **Observability impact:** This *is* the observability layer — `ExecutionEvent` is the audit trail for task/goal status transitions that Phases 2-3 didn't have. Fires unconditionally via `@nestjs/event-emitter`, decoupled from `@pee/planning` (no import added there), so no future status-changing code path can silently skip logging.
+- **Security considerations:** No new authz model — `JwtAuthGuard` on every route; start/complete reuse `TasksService.getOne`/`update` (404-not-403 preserved); activity/active-session queries filter directly by `ownerId`. One documented carve-out: `listActiveSessions` reads `Task`/`Goal` title fields via Prisma `include` rather than round-tripping through their services, since the row is already owner-scoped and no authorization decision is made from the joined data — see [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `21-decision-log.md`, `27-backlog.md`.
+- **Acceptance criteria:**
+  - [x] Start/complete endpoints implemented, reusing `TasksService.update` (no duplicated status logic)
+  - [x] `ExecutionEvent` fires unconditionally on every task/goal status change, regardless of entry point
+  - [x] Per-goal activity timeline and global active-sessions dashboard implemented
+  - [x] Unit tests passing (12 in `@pee/execution`, plus 3 new assertions added to existing `@pee/planning` specs — 101 total across the workspace)
+  - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest new file is `execution-events.service.ts` at 122 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-3)
+  - [ ] Multi-pause/resume sessions, cross-service distributed tracing — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

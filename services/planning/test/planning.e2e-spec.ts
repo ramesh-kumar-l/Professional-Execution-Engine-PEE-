@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { Test } from '@nestjs/testing';
 import { AuthModule } from '@pee/auth';
 import { PrismaModule, PrismaService } from '@pee/database';
@@ -22,7 +23,14 @@ describe('Planning flow (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, ProjectsModule, PlanningModule],
+      imports: [
+        ConfigModule.forRoot({ isGlobal: true }),
+        EventEmitterModule.forRoot(),
+        PrismaModule,
+        AuthModule,
+        ProjectsModule,
+        PlanningModule,
+      ],
     }).compile();
 
     app = moduleRef.createNestApplication();

@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 3 — Planning Engine. Complete (2026-07-18).**
+**Phase 4 — Execution Engine. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), and Phase 2 (Projects) are complete. Phase 3 — the second domain-entity feature — is implemented: `services/planning` (NestJS module, `Goal` nested under `Project`, `Task` nested under `Goal`, closed-loop progress rollup), `packages/database` (`Goal`/`Task` tables added), `packages/types` (goal/task DTOs added), `apps/web` (goal list/create/detail/edit pages, inline task management). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), and Phase 3 (Planning Engine) are complete. Phase 4 is implemented: `services/execution` (NestJS module, `TaskExecutionSession` start/stop timer + append-only `ExecutionEvent` log, connected to `@pee/planning` via `@nestjs/event-emitter` rather than a direct module dependency), `packages/database` (`TaskExecutionSession`/`ExecutionEvent` tables added), `packages/types` (execution DTOs + shared event payload types added), `apps/web` (Start/Complete controls + activity timeline on the goal detail page, new global `/dashboard/execution` "Active Work" dashboard). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -82,8 +82,24 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new file under ~300 lines | Done (largest: `goals.service.ts`, 151 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 4 — Execution Engine
+
+| Deliverable | Status |
+|---|---|
+| `TaskExecutionSession`/`ExecutionEvent` models added to `packages/database` (Prisma) | Done |
+| Shared execution types + event payload types (`packages/types`) | Done |
+| `@nestjs/event-emitter` wired: `@pee/planning` emits, `@pee/execution` listens (no cyclic module dependency) | Done |
+| `services/execution` (start/complete endpoints, per-goal activity timeline, global active-sessions dashboard) | Done |
+| `services/api` wiring (`EventEmitterModule.forRoot()` + `ExecutionModule` imported) | Done |
+| `apps/web` (Start/Complete controls + activity timeline on goal detail, new `/dashboard/execution` page, linked from dashboard) | Done |
+| Unit tests (12 in `@pee/execution`, plus 3 new assertions in existing `@pee/planning` specs — 101 total) | Done |
+| Integration/e2e tests (Docker Postgres required) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Every new/edited file under ~300 lines | Done (largest new file: `execution-events.service.ts`, 122 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, and 3 are done. **Phase 4 — Execution Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, and 4 are done. **Phase 5 — Memory Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

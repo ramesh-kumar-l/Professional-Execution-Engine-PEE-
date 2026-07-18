@@ -38,6 +38,14 @@ enum TaskStatus {
   ARCHIVED
 }
 
+enum ExecutionEventType {
+  TASK_STARTED
+  TASK_STATUS_CHANGED
+  TASK_COMPLETED
+  TASK_ARCHIVED
+  GOAL_STATUS_CHANGED
+}
+
 // Client-generated UUID primary keys + updatedAt/version columns on every
 // syncable table, per adr/0003 (keeps offline sync possible later without
 // a schema rewrite).
@@ -55,6 +63,8 @@ model User {
   projects      Project[]
   goals         Goal[]
   tasks         Task[]
+  executionSessions TaskExecutionSession[]
+  executionEvents   ExecutionEvent[]
 
   @@map("users")
 }
@@ -124,6 +134,7 @@ model Goal {
   updatedAt   DateTime   @updatedAt
   version     Int        @default(1)
   tasks       Task[]
+  executionEvents ExecutionEvent[]
 
   @@index([projectId])
   @@index([ownerId])
@@ -144,8 +155,51 @@ model Task {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   version     Int        @default(1)
+  executionSessions TaskExecutionSession[]
+  executionEvents   ExecutionEvent[]
 
   @@index([goalId])
   @@index([ownerId])
   @@map("tasks")
+}
+
+model TaskExecutionSession {
+  id              String    @id @default(uuid())
+  taskId          String
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  ownerId         String
+  owner           User      @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationSeconds Int?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  version         Int       @default(1)
+
+  @@index([taskId])
+  @@index([ownerId])
+  @@map("task_execution_sessions")
+}
+
+// Append-only log — never mutated after insert, so unlike every other
+// table here it intentionally has no updatedAt/version (adr/0003's
+// sync-merge columns exist for mutable rows; a log entry has nothing
+// to merge).
+model ExecutionEvent {
+  id         String             @id @default(uuid())
+  ownerId    String
+  owner      User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  goalId     String?
+  goal       Goal?              @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  taskId     String?
+  task       Task?              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  eventType  ExecutionEventType
+  fromStatus String?
+  toStatus   String?
+  createdAt  DateTime           @default(now())
+
+  @@index([ownerId])
+  @@index([goalId])
+  @@index([taskId])
+  @@map("execution_events")
 }
