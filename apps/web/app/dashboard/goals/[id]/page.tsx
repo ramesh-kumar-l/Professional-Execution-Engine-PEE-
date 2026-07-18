@@ -2,13 +2,17 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { TaskForm } from '@/components/TaskForm';
+import { getLatestPendingRecommendation } from '@/lib/ai-api-client';
 import { listGoalActivity } from '@/lib/execution-api-client';
 import { getGoal, listTasks } from '@/lib/planning-api-client';
 import {
+  acceptRecommendationAction,
   archiveGoalAction,
   archiveTaskAction,
   completeTaskAction,
   createTaskAction,
+  dismissRecommendationAction,
+  generateSuggestionsAction,
   startTaskAction,
   toggleTaskDoneAction,
 } from './actions';
@@ -26,6 +30,7 @@ export default async function GoalDetailPage({ params }: { params: { id: string 
 
   const { data: tasks } = await listTasks(session.accessToken, goal.id);
   const { data: activity } = await listGoalActivity(session.accessToken, goal.id);
+  const pendingRecommendation = await getLatestPendingRecommendation(session.accessToken, goal.id);
 
   return (
     <main className="mx-auto flex max-w-2xl flex-col gap-4 p-8">
@@ -75,6 +80,45 @@ export default async function GoalDetailPage({ params }: { params: { id: string 
           </li>
         ))}
       </ul>
+
+      <h2 className="text-xl font-semibold">AI Suggestions</h2>
+      {!pendingRecommendation && (
+        <form action={generateSuggestionsAction.bind(null, goal.id)}>
+          <button type="submit">Suggest tasks with AI</button>
+        </form>
+      )}
+      {pendingRecommendation && (
+        <div className="flex flex-col gap-3">
+          <form
+            action={acceptRecommendationAction.bind(null, goal.id, pendingRecommendation.id)}
+            className="flex flex-col gap-3"
+          >
+            <ul className="flex flex-col gap-2">
+              {pendingRecommendation.suggestions.map((suggestion, index) => (
+                <li key={index} className="flex flex-col gap-1 border-b border-white/10 pb-2">
+                  <label className="flex items-start gap-2">
+                    <input type="checkbox" name="suggestionIndex" value={index} />
+                    <span>
+                      <strong>{suggestion.title}</strong>
+                      {suggestion.description && <span> — {suggestion.description}</span>}
+                    </span>
+                  </label>
+                  <p className="text-sm text-white/70">
+                    Reason: {suggestion.reason} (confidence {Math.round(suggestion.confidence * 100)}%)
+                  </p>
+                  {suggestion.alternatives.length > 0 && (
+                    <p className="text-sm text-white/70">Alternatives: {suggestion.alternatives.join('; ')}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+            <button type="submit">Accept selected</button>
+          </form>
+          <form action={dismissRecommendationAction.bind(null, goal.id, pendingRecommendation.id)}>
+            <button type="submit">Dismiss</button>
+          </form>
+        </div>
+      )}
 
       <h2 className="text-xl font-semibold">Activity</h2>
       {activity.length === 0 && <p>No activity yet.</p>}

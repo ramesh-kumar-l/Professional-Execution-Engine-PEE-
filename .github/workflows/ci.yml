@@ -33,6 +33,9 @@ jobs:
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-nextauth-secret
       INTERNAL_API_URL: http://localhost:3001
+      AI_PROVIDER: anthropic
+      ANTHROPIC_API_KEY: ci-placeholder-anthropic-key
+      ANTHROPIC_MODEL: claude-sonnet-5
 
     steps:
       - uses: actions/checkout@v4
@@ -77,6 +80,9 @@ jobs:
 
       - name: Sync service e2e tests
         run: npm run test:e2e -w @pee/sync
+
+      - name: AI service e2e tests
+        run: npm run test:e2e -w @pee/ai
 
       - name: Local-client e2e tests (SQLite <-> Postgres round trip)
         run: npm run test:e2e -w @pee/local-client

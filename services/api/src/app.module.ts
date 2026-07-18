@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { AIModule } from '@pee/ai';
 import { AuthModule } from '@pee/auth';
 import { PrismaModule } from '@pee/database';
 import { ExecutionModule } from '@pee/execution';
@@ -22,6 +23,7 @@ import { HealthController } from './health.controller';
     PlanningModule,
     ExecutionModule,
     SyncModule,
+    AIModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

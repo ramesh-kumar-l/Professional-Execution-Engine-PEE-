@@ -12,7 +12,7 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 5 endpoints live, 2026-07-18.**
+**Phase 6 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
@@ -73,6 +73,17 @@ All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop
 | POST | `/sync/push` | access token (Bearer) | Body `{ changes: [{ entity, id, data, clientUpdatedAt, clientVersion }] }` (max 500 per call). Returns one result per change: `applied`, `conflict` (with `serverRecord` — the server's current row, to overwrite the caller's stale local copy), or `rejected` (with `reason`). |
 
 **This is the local-first sync protocol `adr/0003` deferred** — the first real SQLite↔Postgres reconciliation, not a stub. `ExecutionEvent` is intentionally not part of this contract (it's pull-only by nature and already served by `/goals/:goalId/activity`); only `Project`/`Goal`/`Task` are syncable. See [08-backend-guidelines.md](08-backend-guidelines.md) for the conflict-resolution mechanics (optimistic-lock version guard, last-write-wins by timestamp) and `packages/local-client` for the reference SQLite client that exercises this contract.
+
+## Current endpoints (`/services/ai`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/goals/:goalId/ai/task-suggestions` | access token (Bearer) | Generates AI task-breakdown suggestions for the goal, persists them as `PENDING`, **creates no `Task`**. Rate-limited tighter than the global default (10/min). 503 (with the attempt persisted as `FAILED`) if the provider errors or returns unparseable structured output. |
+| GET | `/goals/:goalId/ai/task-suggestions` | access token (Bearer) | Paginated history of recommendations for the goal, most-recent-first. |
+| POST | `/ai/recommendations/:id/accept` | access token (Bearer) | Body `{ acceptedIndices: number[] }`. Creates exactly those `Task`s (via `TasksService.create`, so the Phase 3 rollup fires), marks the recommendation `ACCEPTED`. 409 if the recommendation isn't `PENDING`. |
+| POST | `/ai/recommendations/:id/dismiss` | access token (Bearer) | Marks the recommendation `DISMISSED`. Creates nothing. 409 if not `PENDING`. |
+
+**Human approval is a structural gate, not a UI convention:** no `Task` row is ever created by the generate call itself — only `accept` writes to `Task`, and only for the specific suggestions the caller selected. Every suggestion carries `reason`/`confidence`/`alternatives`; every recommendation carries the `context` the model actually saw — the explainability fields (§100) are part of the response shape, not optional. See [08-backend-guidelines.md](08-backend-guidelines.md) and [09-ai-architecture.md](09-ai-architecture.md) for the provider abstraction and failure-handling mechanics.
 
 ## Token custody (BFF pattern)
 

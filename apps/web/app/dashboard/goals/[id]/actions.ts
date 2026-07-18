@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
+import { acceptRecommendation, dismissRecommendation, generateTaskSuggestions } from '@/lib/ai-api-client';
 import { completeTaskExecution, startTaskExecution } from '@/lib/execution-api-client';
 import { archiveGoal, archiveTask, createTask, getGoal, updateGoal, updateTask } from '@/lib/planning-api-client';
 import type { GoalFormState } from '@/components/GoalForm';
@@ -83,6 +84,37 @@ export async function completeTaskAction(goalId: string, taskId: string): Promis
   const session = await auth();
   if (session?.accessToken) {
     await completeTaskExecution(session.accessToken, taskId);
+  }
+  revalidatePath(`/dashboard/goals/${goalId}`);
+}
+
+export async function generateSuggestionsAction(goalId: string): Promise<void> {
+  const session = await auth();
+  if (session?.accessToken) {
+    await generateTaskSuggestions(session.accessToken, goalId);
+  }
+  revalidatePath(`/dashboard/goals/${goalId}`);
+}
+
+export async function acceptRecommendationAction(
+  goalId: string,
+  recommendationId: string,
+  formData: FormData,
+): Promise<void> {
+  const session = await auth();
+  if (session?.accessToken) {
+    const acceptedIndices = formData.getAll('suggestionIndex').map((value) => Number(value));
+    if (acceptedIndices.length > 0) {
+      await acceptRecommendation(session.accessToken, recommendationId, acceptedIndices);
+    }
+  }
+  revalidatePath(`/dashboard/goals/${goalId}`);
+}
+
+export async function dismissRecommendationAction(goalId: string, recommendationId: string): Promise<void> {
+  const session = await auth();
+  if (session?.accessToken) {
+    await dismissRecommendation(session.accessToken, recommendationId);
   }
   revalidatePath(`/dashboard/goals/${goalId}`);
 }

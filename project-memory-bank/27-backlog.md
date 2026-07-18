@@ -127,6 +127,48 @@ Priority: Low.
 Potential dependencies: Telemetry showing real conflict frequency, to justify the added complexity.
 Estimated value: Fewer surprised "my edit disappeared" moments for genuinely concurrent multi-device users.
 
+### AIProvider `stream()`/`embed()` methods
+Description: Add streaming completions and embeddings to the `AIProvider` interface.
+Reason: No shipped feature needs either yet — Phase 6 built only `complete()`, deliberately (Sustainable Complexity). `embed()` would matter for a future retrieval/RAG feature; `stream()` for a real-time chat-style UI.
+Priority: Low — revisit when a concrete feature needs one.
+Potential dependencies: A feature that specifically requires streamed output or vector search.
+Estimated value: Unlocks a different class of AI feature than request/response completions.
+
+### Automatic multi-provider failover for AIProvider
+Description: If the active provider (Anthropic or OpenAI) errors or times out, automatically retry against the other configured vendor instead of surfacing an error.
+Reason: Phase 6 deliberately chose single-active-provider (config-selected) over automatic failover — doubling cost on every degraded call and making "which model produced this recommendation" non-deterministic, which undermines explainability. No reliability data yet justifies the added complexity.
+Priority: Low — revisit only if real failure-rate telemetry demands it.
+Potential dependencies: Both vendors' API keys configured simultaneously; a policy for how a failover changes the "model" field shown to the user.
+Estimated value: Higher uptime for AI-native features if a single vendor has an outage.
+
+### Additional AI-native features beyond task-breakdown suggestions
+Description: Goal/project progress narratives, smart task prioritization, natural-language task capture ("add a task from this sentence"), and other candidates from `09-ai-architecture.md`'s governing rules.
+Reason: Phase 6 shipped one concrete, well-built feature (goal → task-breakdown suggestions) to prove the `AIProvider` abstraction end-to-end, per Sustainable Complexity — not a grab-bag of AI features.
+Priority: Medium — natural Phase 7+ candidates, each individually scoped against the quality bar.
+Potential dependencies: `AIModule`/`AIProvider` (already built, ready to be reused).
+Estimated value: Each feature compounds on the same infrastructure investment.
+
+### AI-recommendation sync coverage
+Description: Extend the sync protocol (`services/sync`) to cover `AIRecommendation` so pending/past AI suggestions are visible offline.
+Reason: Descoped from Phase 5 (didn't exist yet) and Phase 6 (no offline UI exists yet to need it) — same precedent as `TaskExecutionSession`/`ExecutionEvent`.
+Priority: Low — no offline UI exists yet to consume it.
+Potential dependencies: A concrete offline-UI feature.
+Estimated value: Full-fidelity offline experience once a real offline UI exists.
+
+### AI usage/cost tracking
+Description: Record token usage/cost per `AIRecommendation` (already captured in each provider's `AICompletionResult.usage`, but not persisted) and surface it for cost monitoring.
+Reason: Not needed to prove the feature works; a real operational concern once real users generate real volume against paid vendor APIs.
+Priority: Medium — revisit before enabling this feature for real users at scale.
+Potential dependencies: None blocking; `usage` is already computed by both providers, just needs a column and a dashboard.
+Estimated value: Cost visibility and abuse detection.
+
+### Real vendor-credentialed smoke test for `services/ai`
+Description: A manual (or scheduled, credentialed) test that actually calls the live Anthropic/OpenAI APIs, verifying wire compatibility beyond the mocked unit tests and fake-provider e2e.
+Reason: No automated test in this repo exercises a real network call to either vendor — normal for third-party LLM integrations authored without live credentials, but a real gap before production reliance.
+Priority: High — before this feature is relied on with real users.
+Potential dependencies: Real `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` credentials in a controlled environment.
+Estimated value: Confidence the provider implementations actually work against the real vendor APIs, not just their documented shape.
+
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.
 Reason: Deliberately not force-upgraded mid-Phase-1 to avoid pulling in untested majors without dedicated regression testing. See [20-known-issues.md](20-known-issues.md), [21-decision-log.md](21-decision-log.md).

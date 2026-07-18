@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 5 — Memory Engine. Complete (2026-07-18).**
+**Phase 6 — AI Integration. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), and Phase 4 (Execution Engine) are complete. Phase 5 is implemented: `services/sync` (NestJS module — `POST /sync/pull`/`POST /sync/push`, optimistic-lock version guard + last-write-wins-by-timestamp conflict resolution, bidirectional for `Project`/`Goal`/`Task`), `packages/local-client` (a reusable SQLite-backed reference client — `LocalStore` + `SyncClient` — proving the protocol against a real embedded database, not a mock), `packages/database` (composite `[ownerId, updatedAt]` indexes, `version` finally wired up as a live optimistic-concurrency guard on every write). This is `adr/0003`'s deferred sync protocol, designed and working. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), and Phase 5 (Memory Engine) are complete. Phase 6 is implemented: `services/ai` (NestJS module — `AIProvider` interface exposing `complete()` only, `AI_PROVIDER`-selected DI factory constructing only the active vendor's implementation, `AnthropicProvider`/`OpenAIProvider` proven against a shared behavioral contract test) plus its first real consumer — goal → task-breakdown suggestions, gated behind explicit human accept/dismiss, every suggestion carrying reason/confidence/alternatives, every recommendation carrying the context the model saw. This is `adr/0006`'s deferred provider abstraction, designed, working, and actually consumed — not just an interface. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -113,8 +113,24 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest new file: `local-store.ts`, 159 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 6 — AI Integration
+
+| Deliverable | Status |
+|---|---|
+| `AIRecommendation` model added to `packages/database` (Prisma) | Done |
+| Shared AI types (`packages/types`) | Done |
+| `services/ai` — `AIProvider` interface, `AnthropicProvider`/`OpenAIProvider`, config-selected DI factory | Done |
+| First feature: goal → task-breakdown suggestions (generate/list/accept/dismiss), human-approval gate before any `Task` is created | Done |
+| `services/api` wiring (`AIModule` imported) | Done |
+| `apps/web` (AI Suggestions panel on the goal detail page — suggest/accept-selected/dismiss) | Done |
+| Unit tests (35 in `@pee/ai` — provider contract, per-provider error mapping, recommendations service, DTO validation — 183 total across the workspace) | Done |
+| Integration/e2e tests (`services/ai/test/ai.e2e-spec.ts` — Docker Postgres required, but vendor API keys are not, via an in-test fake-provider override) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Every new/edited file under ~300 lines | Done (largest new file: `ai-recommendations.service.ts`, 212 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, 4, and 5 are done. **Phase 6 — AI Integration** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, 5, and 6 are done. **Phase 7 — Analytics** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

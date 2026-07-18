@@ -173,3 +173,28 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** The sync registry's `SyncEntityDefinition` interface is shaped around bidirectional entities (`applyCreate`/`applyUpdate` are required); forcing a 4th, pull-only entry into it would mean awkward no-op methods or a second registry shape for one entity. `ExecutionEvent` is already served online via `GET /goals/:goalId/activity`, and no offline UI exists yet to need it cached locally. Tracked in [27-backlog.md](27-backlog.md), not silently dropped.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 5.
+
+## 2026-07-18 — Phase 6 implementation-level decisions
+
+**Decision (`AIProvider` exposes only `complete()`, not `stream`/`embed`):** the interface adr/0006 anticipated ("methods like `complete`, `stream`, `embed`") is built minimally — just what the one shipped feature needs.
+**Alternatives considered:** Build all three methods up front, since adr/0006 named them.
+**Reason:** adr/0006's wording was illustrative, not a mandate; no feature needs streaming output or embeddings yet, and building unused interface surface is speculative (Sustainable Complexity, Principle 8). Added the moment a real feature needs them — tracked in [27-backlog.md](27-backlog.md), not silently dropped.
+
+**Decision (single active provider, selected by config — no automatic multi-provider failover):** `AI_PROVIDER` env var picks which vendor's implementation the DI factory constructs; only that vendor's API key is required at boot.
+**Alternatives considered:** Try Claude first, automatically fall back to OpenAI on error.
+**Reason:** Automatic failover doubles cost on every degraded call and makes "which model produced this recommendation" non-deterministic, undermining §100's explainability requirement (the response must state *which* model reasoned about it). No demonstrated reliability need justifies the added complexity yet. Revisit only if real failure-rate data demands it.
+
+**Decision (explainability enforced at the recommendation boundary, not the raw-completion boundary):** `AIRecommendationResponse`/`AITaskSuggestion` (in `packages/types`) structurally require `reason`/`confidence`/`alternatives`/`context`; `AIProvider.complete()` itself carries no such requirement.
+**Reason:** `complete()` is a generic LLM port — reason/confidence/alternatives don't universally apply to every possible completion (e.g. a future embedding call). Putting the guarantee on the recommendation type, with `AIRecommendationsService` as the one enforcement point every current/future recommendation feature flows through, achieves adr/0006's "enforced at the interface, not left to each caller" goal without conflating two different abstraction layers.
+
+**Decision (AI suggestions never auto-create a `Task` — human approval is a structural data-flow gate):** `generateTaskSuggestions` only ever persists an `AIRecommendation`; only `accept(ownerId, id, { acceptedIndices })` writes to `Task`, via `TasksService.create` (not raw Prisma), for exactly the suggestions selected.
+**Alternatives considered:** Auto-create all suggested tasks and let the user delete unwanted ones.
+**Reason:** Principle 4 (Human Control) and the quality bar's "Reversible"/"Human control preserved" criteria are enforced by the data flow itself, not a UI convention that a future change could accidentally bypass. Reusing `TasksService.create` (rather than a bespoke insert) keeps accepted suggestions indistinguishable from manually-created tasks for every downstream concern (Phase 3 rollup, ownership).
+
+**Decision (a provider failure or malformed structured output is persisted as `FAILED`, never silently dropped or fabricated):** `generateTaskSuggestions` catches both cases, writes an `AIRecommendation` row with `status: FAILED`, and returns a generic `ServiceUnavailableException` — never a partial or invented suggestion.
+**Reason:** The quality bar's "Fails gracefully" criterion ("a bad/uncertain AI output degrades to a safe default, never a silent wrong action") requires this explicitly. Persisting the failed attempt (rather than just throwing) keeps the failure traceable — the same "never leave a known risk undocumented" discipline applied to runtime failures, not just design decisions.
+
+**Decision (bounded prompt input — at most 50 existing task titles):** `buildTaskBreakdownContext` caps how many existing tasks are included in the prompt, regardless of how large a goal's task list grows.
+**Reason:** Directly serves the "production-level stable system" requirement — an unbounded prompt would mean unbounded token cost/latency as a goal accumulates tasks over time. 50 is a generous-but-bounded ceiling; revisit only if a real goal needs more context than that to get useful suggestions.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [09-ai-architecture.md](09-ai-architecture.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 6.

@@ -10,7 +10,8 @@
       "Bash(git check-ignore *)",
       "Bash(echo \"exit:$?\")",
       "Bash(git -C /d/ClaudeProjects/Professional-Execution-Engine-PEE- check-ignore -v \"packages/local-client/prisma/generated/client/index.js\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

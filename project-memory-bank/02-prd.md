@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 5 (Memory Engine) written and implemented, 2026-07-18.**
+**Status: Phase 6 (AI Integration) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -125,6 +125,33 @@
   - [x] Every new/edited file stays under ~300 lines (largest new file is `local-store.ts` at 159 lines)
   - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-4)
   - [ ] `apps/web` browser-side offline support, `ExecutionEvent`/`TaskExecutionSession` sync coverage, local-file-at-rest encryption, richer multi-device conflict resolution — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 6 — AI Integration
+
+- **Objective:** Build the first-party `AIProvider` abstraction fixed by `adr/0006` and ship a real, end-to-end AI-native feature on top of it — not just the interface — passing `evaluation/ai-feature-quality-bar.md`.
+- **Current state:** No AI code existed (`09-ai-architecture.md` status: "no AI subsystem implemented"); the provider-abstraction shape was decided in Phase 0.5 but never built.
+- **Desired state:** A dedicated `ai` Nest module exposing `AIProvider.complete()` behind a config-selected factory (Anthropic Claude active by default, OpenAI as the second implementation proving the abstraction generalizes), consumed by one concrete feature: goal → task-breakdown suggestions, gated behind explicit human accept/dismiss.
+- **Required APIs:** `POST /goals/:goalId/ai/task-suggestions`, `GET /goals/:goalId/ai/task-suggestions`, `POST /ai/recommendations/:id/accept`, `POST /ai/recommendations/:id/dismiss` — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** New `AIRecommendation` table (`AIRecommendationType`/`AIRecommendationStatus` enums) — see [10-database-design.md](10-database-design.md).
+- **UI impact:** "AI Suggestions" section on `/dashboard/goals/[id]` — a "Suggest tasks with AI" action when no suggestion is pending; when one is pending, each suggestion's title/description alongside its reason/confidence/alternatives, a checkbox per suggestion, "Accept selected" and "Dismiss" actions.
+- **AI impact:** This *is* the AI feature — first real consumer of `adr/0006`'s `AIProvider` interface.
+- **Testing strategy:** Unit (`ai-provider.contract.spec.ts` runs the same behavioral contract against both `AnthropicProvider`/`OpenAIProvider` with vendor SDKs mocked; per-provider specs for structured-output parsing and error mapping; `AIRecommendationsService` spec — mocked `AIProvider`+Prisma+`GoalsService`/`TasksService` — covering generate success/provider-failure/malformed-output, accept, dismiss, cross-owner 404), DTO validation, integration/e2e (`ai.e2e-spec.ts` — Docker Postgres, but `AI_PROVIDER_TOKEN` overridden with an in-test fake provider so **no vendor API keys are needed**, a genuine improvement over Phase 1-5's e2e posture).
+- **Migration requirements:** Adds `AIRecommendation` to the existing Prisma schema; same unresolved Docker-dependent no-migration-ever-generated gap carried forward from Phases 1-5.
+- **Observability impact:** Every generate attempt is persisted (`PENDING`/`ACCEPTED`/`DISMISSED`/`FAILED`) — a failed AI call is traceable, not silently swallowed; accept reuses `TasksService.create` so the Phase 3 rollup keeps firing for AI-originated tasks exactly as for manually-created ones.
+- **Security considerations:** `JwtAuthGuard` + ownership-forced `ownerId` on every route, same 404-not-403 pattern as every prior module; a tighter `@Throttle` (10/min) on the generate endpoint beyond the global default, since LLM calls are slow and cost money per request; every vendor call is wrapped in an explicit ~20s `AbortController` timeout, independent of SDK defaults; the active provider's API key is required at boot (fail-fast), never silently absent; vendor SDK errors are mapped to a generic message before ever reaching a response body. New ground versus every prior phase: a goal's title/description/task titles are sent to a third-party LLM — documented as the accepted trade-off of shipping any cloud-LLM feature, no new PII beyond what the user already entered — see [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `09-ai-architecture.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `21-decision-log.md`, `27-backlog.md`.
+- **Acceptance criteria:**
+  - [x] `AIProvider.complete()` implemented against both Anthropic and OpenAI, proven via a shared contract test
+  - [x] Goal → task-breakdown suggestions generated, persisted as `PENDING`, never auto-creating a `Task`
+  - [x] Accept/dismiss implemented; accept reuses `TasksService.create`; re-responding to a non-`PENDING` recommendation is rejected
+  - [x] Every suggestion carries reason/confidence/alternatives; every recommendation carries its context — passes `evaluation/ai-feature-quality-bar.md`'s 8 criteria
+  - [x] Provider failure and malformed structured output both degrade to a persisted `FAILED` record + a clean error, never a fabricated suggestion
+  - [x] Unit tests passing (35 in `@pee/ai` — 183 total across the workspace)
+  - [x] Integration/e2e tests written; needs Docker only, not vendor API keys (fake-provider override) — not run in the authoring sandbox (no Docker there)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest new file: `ai-recommendations.service.ts`, 212 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-5)
+  - [ ] A real network smoke test against the live Anthropic/OpenAI APIs — requires real vendor credentials, not exercised by any automated test; `stream`/`embed` methods, automatic multi-provider failover, additional AI-native features, AI-recommendation sync coverage, usage/cost tracking — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

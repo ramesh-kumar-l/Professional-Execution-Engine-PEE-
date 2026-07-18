@@ -23,7 +23,7 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 ## Status
 
-**Phase 5 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma` + `packages/local-client/prisma/schema.prisma`).
+**Phase 6 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma`).
 
 ## Current tables
 
@@ -35,6 +35,8 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 - **`Task`** (`tasks`) — `id` (uuid), `goalId` (FK to `Goal`, cascade delete), `ownerId` (FK to `User`, cascade delete), `title`, `description` (nullable), `status` (enum `TaskStatus`: `TODO`/`IN_PROGRESS`/`DONE`/`ARCHIVED`, default `TODO`), `order` (int, default 0, decomposition ordering within a goal), `completedAt` (nullable, set when status becomes `DONE`), `createdAt`, `updatedAt`, `version`. Indexed on `goalId` and `ownerId`. `DELETE /tasks/:id` sets `status = ARCHIVED` (soft delete).
 - **`TaskExecutionSession`** (`task_execution_sessions`) — `id` (uuid), `taskId` (FK to `Task`, cascade delete), `ownerId` (FK to `User`, cascade delete), `startedAt`, `endedAt` (nullable — null means the session is still open/running), `durationSeconds` (nullable, computed on complete), `createdAt`, `updatedAt`, `version`. Indexed on `taskId` and `ownerId`. At most one open session (`endedAt IS NULL`) per task, enforced in `TaskSessionsService`, not a DB constraint.
 - **`ExecutionEvent`** (`execution_events`) — `id` (uuid), `ownerId` (FK to `User`, cascade delete), `goalId`/`taskId` (both nullable FKs, cascade delete), `eventType` (enum `ExecutionEventType`: `TASK_STARTED`/`TASK_STATUS_CHANGED`/`TASK_COMPLETED`/`TASK_ARCHIVED`/`GOAL_STATUS_CHANGED`), `fromStatus`/`toStatus` (nullable strings), `createdAt`. Indexed on `ownerId`, `goalId`, `taskId`. **Append-only — deliberately has no `updatedAt`/`version`**, unlike every other table: a log row is never mutated after insert, so the `adr/0003` sync-merge columns (meant for mutable rows) would be meaningless here.
+
+- **`AIRecommendation`** (`ai_recommendations`, Phase 6) — `id` (uuid), `ownerId` (FK to `User`, cascade delete), `goalId` (FK to `Goal`, cascade delete), `type` (enum `AIRecommendationType`: `GOAL_TASK_BREAKDOWN`), `status` (enum `AIRecommendationStatus`: `PENDING`/`ACCEPTED`/`DISMISSED`/`FAILED`, default `PENDING`), `context` (`Json` — the goal title/description/existing-task-titles the model actually saw, for traceability), `suggestions` (`Json` — array of `{ title, description?, reason, confidence, alternatives }`), `provider`/`model` (strings — which vendor/model produced it), `createdAt`, `updatedAt`, `version`, `respondedAt` (nullable, set on accept/dismiss/fail). Indexed on `ownerId` and `goalId`. Mutable (status transitions), so it keeps `updatedAt`/`version` per the `adr/0003` convention even though it isn't in Phase 5's sync registry yet (same precedent as `TaskExecutionSession`) — see [27-backlog.md](27-backlog.md).
 
 All tables except `ExecutionEvent` follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`). `Goal`/`Task` denormalize `ownerId` directly (rather than only reachable via a join through `Project`/`Goal`) so ownership checks stay O(1), matching `Project`'s existing pattern.
 
