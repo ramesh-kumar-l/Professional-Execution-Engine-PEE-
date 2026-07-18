@@ -1,9 +1,14 @@
 import 'reflect-metadata';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
 import { ProjectStatus } from '@pee/types';
 
 export class ListProjectsQueryDto {
+  /** Omit to list across every organization the caller belongs to (Phase 10). */
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

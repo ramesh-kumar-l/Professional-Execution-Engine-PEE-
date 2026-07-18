@@ -15,4 +15,4 @@ Full detail: `project-memory-bank/16-roadmap.md`.
 | 7 | Analytics | Complete — 2026-07-18 (`services/analytics`, `apps/web` `/dashboard/analytics`, `dashboard/METRICS.md` live metrics contract) |
 | 8 | Desktop | Complete — 2026-07-18 (`apps/desktop` Electron app, `packages/local-client` consumed unmodified, `adr/0007`) |
 | 9 | Mobile | Complete — 2026-07-18 (`apps/mobile` Expo/React Native app, ported `MobileStore`/`MobileSyncClient`, `adr/0008`) |
-| 10 | Enterprise | Not started |
+| 10 | Enterprise | Complete — 2026-07-18 (`Organization`/`Membership` RBAC, `services/organizations`, OIDC/SAML SSO, `adr/0009`) — **the last phase currently defined** |

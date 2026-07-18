@@ -69,6 +69,9 @@ jobs:
       - name: Auth service e2e tests
         run: npm run test:e2e -w @pee/auth
 
+      - name: Organizations service e2e tests
+        run: npm run test:e2e -w @pee/organizations
+
       - name: Projects service e2e tests
         run: npm run test:e2e -w @pee/projects
 

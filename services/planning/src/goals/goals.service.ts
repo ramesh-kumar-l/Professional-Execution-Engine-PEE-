@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Goal, Prisma, PrismaService } from '@pee/database';
+import { OrganizationsService } from '@pee/organizations';
 import { ProjectsService } from '@pee/projects';
 import {
   GOAL_STATUS_CHANGED_EVENT,
@@ -18,12 +19,14 @@ export class GoalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly projectsService: ProjectsService,
+    private readonly organizationsService: OrganizationsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
    * `options` is populated only by internal callers (e.g. sync push) — never bound to the
    * public HTTP DTO, so a client can't set its own id/updatedAt through the plain REST endpoint.
+   * `organizationId` is always inherited from the parent Project (Phase 10), never caller-supplied.
    */
   async create(
     ownerId: string,
@@ -31,12 +34,13 @@ export class GoalsService {
     dto: CreateGoalDto,
     options?: { id?: string; updatedAt?: Date },
   ): Promise<GoalResponse> {
-    await this.projectsService.getOne(ownerId, projectId);
+    const project = await this.projectsService.getOne(ownerId, projectId);
     const goal = await this.prisma.goal.create({
       data: {
         id: options?.id,
         projectId,
         ownerId,
+        organizationId: project.organizationId,
         title: dto.title,
         description: dto.description,
         targetDate: dto.targetDate ? new Date(dto.targetDate) : undefined,
@@ -46,6 +50,7 @@ export class GoalsService {
     return this.toResponse(goal);
   }
 
+  /** Any member of the project's organization sees every goal under it, not just their own (Phase 10). */
   async list(
     ownerId: string,
     projectId: string,
@@ -56,7 +61,6 @@ export class GoalsService {
     const pageSize = query.pageSize ?? 20;
     const where: Prisma.GoalWhereInput = {
       projectId,
-      ownerId,
       status: query.status ?? { not: 'ARCHIVED' },
       ...(query.search ? { title: { contains: query.search, mode: 'insensitive' } } : {}),
     };
@@ -81,7 +85,7 @@ export class GoalsService {
   }
 
   async getOne(ownerId: string, id: string): Promise<GoalResponse> {
-    const goal = await this.findOwnedOrThrow(ownerId, id);
+    const goal = await this.findAccessibleOrThrow(ownerId, id);
     return this.toResponse(goal);
   }
 
@@ -91,7 +95,7 @@ export class GoalsService {
     dto: UpdateGoalDto,
     options?: { updatedAt?: Date },
   ): Promise<GoalResponse> {
-    const existing = await this.findOwnedOrThrow(ownerId, id);
+    const existing = await this.findAccessibleOrThrow(ownerId, id);
     const goal = await this.prisma.goal.update({
       where: { id },
       data: {
@@ -117,8 +121,10 @@ export class GoalsService {
     return this.toResponse(goal);
   }
 
+  /** Archiving is destructive: only the creator or an org ADMIN/OWNER may do it (Phase 10). */
   async archive(ownerId: string, id: string): Promise<void> {
-    const goal = await this.findOwnedOrThrow(ownerId, id);
+    const goal = await this.findAccessibleOrThrow(ownerId, id);
+    await this.assertDestructivePermission(ownerId, goal);
     if (goal.status === 'ARCHIVED') {
       return;
     }
@@ -177,12 +183,21 @@ export class GoalsService {
     return { totalTasks, doneTasks, percentComplete };
   }
 
-  private async findOwnedOrThrow(ownerId: string, id: string): Promise<Goal> {
+  /** Not-a-member stays 404 (existence-hiding); any member (MEMBER+) may read/update. See adr/0009. */
+  private async findAccessibleOrThrow(userId: string, id: string): Promise<Goal> {
     const goal = await this.prisma.goal.findUnique({ where: { id } });
-    if (!goal || goal.ownerId !== ownerId) {
+    if (!goal) {
       throw new NotFoundException('Goal not found');
     }
+    await this.organizationsService.assertRole(userId, goal.organizationId, 'MEMBER');
     return goal;
+  }
+
+  private async assertDestructivePermission(userId: string, goal: Goal): Promise<void> {
+    if (goal.ownerId === userId) {
+      return;
+    }
+    await this.organizationsService.assertRole(userId, goal.organizationId, 'ADMIN');
   }
 
   private async toResponse(goal: Goal): Promise<GoalResponse> {
@@ -191,6 +206,7 @@ export class GoalsService {
       id: goal.id,
       projectId: goal.projectId,
       ownerId: goal.ownerId,
+      organizationId: goal.organizationId,
       title: goal.title,
       description: goal.description,
       status: goal.status,

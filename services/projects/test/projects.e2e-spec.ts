@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { AuthModule } from '@pee/auth';
 import { PrismaModule, PrismaService } from '@pee/database';
+import { OrganizationsModule } from '@pee/organizations';
 import request from 'supertest';
 import { ProjectsModule } from '../src/projects.module';
 
@@ -20,7 +21,7 @@ describe('Projects flow (e2e)', () => {
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, ProjectsModule],
+      imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, OrganizationsModule, ProjectsModule],
     }).compile();
 
     app = moduleRef.createNestApplication();
@@ -31,6 +32,8 @@ describe('Projects flow (e2e)', () => {
 
   beforeEach(async () => {
     await prisma.project.deleteMany();
+    await prisma.membership.deleteMany();
+    await prisma.organization.deleteMany();
     await prisma.authAuditLog.deleteMany();
     await prisma.refreshToken.deleteMany();
     await prisma.user.deleteMany();
@@ -116,5 +119,49 @@ describe('Projects flow (e2e)', () => {
       .get(`/projects/${created.body.id}`)
       .set('Authorization', `Bearer ${otherToken}`)
       .expect(404);
+  });
+
+  it('lets any org member read/update a teammate-created project, but only the creator or an org ADMIN can archive it (Phase 10)', async () => {
+    const server = app.getHttpServer();
+
+    // Register a second user and invite them into the caller's personal org as a MEMBER.
+    await request(server)
+      .post('/auth/register')
+      .send({ email: 'teammate@test.com', password: 'super-secret-2', displayName: 'Teammate' })
+      .expect(201);
+    const meRes = await request(server).get('/auth/me').set('Authorization', auth()).expect(200);
+    const organizationId = meRes.body.organizations[0].id;
+    await request(server)
+      .post(`/organizations/${organizationId}/members`)
+      .set('Authorization', auth())
+      .send({ email: 'teammate@test.com', role: 'MEMBER' })
+      .expect(201);
+    const teammateLogin = await request(server)
+      .post('/auth/login')
+      .send({ email: 'teammate@test.com', password: 'super-secret-2' })
+      .expect(200);
+    const teammateToken = `Bearer ${teammateLogin.body.tokens.accessToken}`;
+
+    // Caller (the org OWNER/creator) creates a project in the shared org.
+    const created = await request(server)
+      .post('/projects')
+      .set('Authorization', auth())
+      .send({ name: 'Shared Project', organizationId })
+      .expect(201);
+    const projectId = created.body.id;
+
+    // The teammate (a plain MEMBER, not the creator) can read and update it.
+    await request(server).get(`/projects/${projectId}`).set('Authorization', teammateToken).expect(200);
+    await request(server)
+      .patch(`/projects/${projectId}`)
+      .set('Authorization', teammateToken)
+      .send({ name: 'Shared Project (edited by teammate)' })
+      .expect(200);
+
+    // But the teammate cannot archive it — only the creator or an org ADMIN/OWNER can.
+    await request(server).delete(`/projects/${projectId}`).set('Authorization', teammateToken).expect(403);
+
+    // The creator can.
+    await request(server).delete(`/projects/${projectId}`).set('Authorization', auth()).expect(204);
   });
 });

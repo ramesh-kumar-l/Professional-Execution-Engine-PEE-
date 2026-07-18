@@ -23,6 +23,7 @@ export interface GoalResponse {
   id: string;
   projectId: string;
   ownerId: string;
+  organizationId: string;
   title: string;
   description: string | null;
   status: GoalStatus;

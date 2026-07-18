@@ -12,30 +12,50 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 7 endpoints live, 2026-07-18.**
+**Phase 10 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/auth/register` | none | Rate-limited (5/min). 409 on duplicate email. |
-| POST | `/auth/login` | none | Rate-limited (10/min). Returns `{ user, tokens }`. Records `LOGIN_SUCCESS`/`LOGIN_FAILURE`. |
+| POST | `/auth/register` | none | Rate-limited (5/min). 409 on duplicate email. Creates a personal `Organization`+`OWNER` `Membership` in the same transaction (Phase 10). |
+| POST | `/auth/login` | none | Rate-limited (10/min). Returns `{ user, tokens }` (`user.organizations` new in Phase 10). Records `LOGIN_SUCCESS`/`LOGIN_FAILURE`. Rejects an SSO-only user (no `passwordHash`) with the same generic 401. |
 | POST | `/auth/refresh` | refresh token (body) | Rotates the refresh token; 401 + revokes the whole chain on reuse of an already-rotated token. |
 | POST | `/auth/logout` | refresh token (body) | 204, idempotent. |
-| GET | `/auth/me` | access token (Bearer) | `JwtAuthGuard`-protected. |
+| GET | `/auth/me` | access token (Bearer) | `JwtAuthGuard`-protected. Returns `UserProfile` incl. `organizations`. |
+| GET | `/auth/sso/status` | none | **New, Phase 10.** Public. Returns `{ oidc: boolean, saml: boolean }` — `apps/web`'s login page uses this to decide which SSO buttons to render. |
+| POST | `/auth/sso/oidc/provision` | shared secret (`x-sso-internal-secret` header) | **New, Phase 10.** Server-to-server only — Auth.js's `jwt` callback calls this after its own OIDC exchange. 503 if OIDC isn't configured (`SSO_OIDC_ISSUER_URL` unset). |
+| GET | `/auth/sso/saml/authorize` | none (browser redirect) | **New, Phase 10.** SP-initiated SAML redirect to the configured IdP. 503 if unconfigured; 400 if `redirect_uri`'s origin isn't on the allow-list. |
+| POST | `/auth/sso/saml/acs` | none (IdP posts here) | **New, Phase 10.** The real SAML Assertion Consumer Service endpoint — validates the signed assertion, then redirects back to Auth.js's callback with a one-time code. |
+| POST | `/auth/sso/saml/token` | none (server-to-server, Auth.js's OAuth client) | **New, Phase 10.** Redeems the one-time code (single-use) for a short-lived access token. |
+| GET | `/auth/sso/saml/userinfo` | bearer access token (from `/token`) | **New, Phase 10.** Returns `{ user, tokens }` — the same shape `/auth/sso/oidc/provision` returns. |
 | GET | `/health` | none | `services/api` liveness check. |
+
+## Current endpoints (`/services/organizations`) — new in Phase 10
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/organizations` | access token (Bearer) | Creates a (non-personal) organization; the caller becomes its `OWNER`. |
+| GET | `/organizations` | access token (Bearer) | Every organization the caller belongs to, with their role in each. |
+| GET | `/organizations/:id` | access token (Bearer) | 404 if the caller isn't a member. |
+| GET | `/organizations/:id/members` | access token (Bearer) | Any member (`MEMBER`+) may list. |
+| POST | `/organizations/:id/members` | access token (Bearer), `ADMIN`+ | Invite-by-email — links an **existing** PEE user only (no email-token flow yet); 404 if no account exists for that email, 409 if already a member. Granting `OWNER` additionally requires the caller to already be `OWNER`. |
+| PATCH | `/organizations/:id/members/:userId` | access token (Bearer), `ADMIN`+ | Change a member's role; 409 if it would demote the organization's last `OWNER`. |
+| DELETE | `/organizations/:id/members/:userId` | access token (Bearer), `ADMIN`+ | Remove a member, 204, idempotent; 403 if a non-`OWNER` `ADMIN` tries to remove another `ADMIN`/`OWNER`; 409 if it would remove the last `OWNER`. |
+
+All `/organizations/*` routes are `JwtAuthGuard`-protected. Not-a-member is 404 (existence-hiding, same discipline as every other module); member-but-insufficient-role is 403 (`OrganizationRolesGuard` + `@RequireRole()`, or the service layer directly for GET routes) — see [12-security.md](12-security.md) for why this is a deliberate, narrow exception to the blanket 404-not-403 rule.
 
 ## Current endpoints (`/services/projects`)
 
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/projects` | access token (Bearer) | Creates a project owned by the caller. |
-| GET | `/projects` | access token (Bearer) | Paginated (`?page=&pageSize=`, default 1/20, cap 100). `?status=ACTIVE\|ARCHIVED` (default `ACTIVE`), `?search=` (name, case-insensitive contains). |
-| GET | `/projects/:id` | access token (Bearer) | 404 if missing **or** owned by another user — same response either way, to avoid leaking existence. |
-| PATCH | `/projects/:id` | access token (Bearer) | Partial update (`name`/`description`/`status`); same 404 rule as above. |
-| DELETE | `/projects/:id` | access token (Bearer) | Soft-delete (sets `status = ARCHIVED`), 204, idempotent. |
+| POST | `/projects` | access token (Bearer) | Creates a project. `?organizationId` (body field, optional) defaults to the caller's personal org (Phase 10); if given, the caller must be a member (`MEMBER`+). |
+| GET | `/projects` | access token (Bearer) | Paginated (`?page=&pageSize=`, default 1/20, cap 100). `?status=ACTIVE\|ARCHIVED` (default `ACTIVE`), `?search=` (name, case-insensitive contains), `?organizationId=` (**new, Phase 10** — optional; omit to list across every org the caller belongs to). |
+| GET | `/projects/:id` | access token (Bearer) | 404 if missing **or** the caller isn't a member of its organization — same response either way. Any member (`MEMBER`+) may read. |
+| PATCH | `/projects/:id` | access token (Bearer) | Partial update (`name`/`description`/`status`); same 404 rule as above. Any member (`MEMBER`+) may update. |
+| DELETE | `/projects/:id` | access token (Bearer) | Soft-delete (sets `status = ARCHIVED`), 204, idempotent. **Phase 10:** requires the creator or an org `ADMIN`/`OWNER` — a plain `MEMBER` who didn't create it gets 403. |
 
-All `/projects` routes are `JwtAuthGuard`-protected — there are no anonymous project routes. Ownership is enforced in `ProjectsService`, not at the route level.
+All `/projects` routes are `JwtAuthGuard`-protected — there are no anonymous project routes. Membership (not raw ownership) is enforced in `ProjectsService` (Phase 10 retrofit — see [08-backend-guidelines.md](08-backend-guidelines.md)).
 
 ## Current endpoints (`/services/planning`)
 
@@ -52,7 +72,7 @@ All `/projects` routes are `JwtAuthGuard`-protected — there are no anonymous p
 | PATCH | `/tasks/:id` | access token (Bearer) | Partial update (`title`/`description`/`status`/`order`); a `status` change triggers the parent goal's progress recalculation. |
 | DELETE | `/tasks/:id` | access token (Bearer) | Soft-delete (`status = ARCHIVED`), 204, idempotent; also triggers the parent goal's progress recalculation. |
 
-All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop behavior:** every task mutation that can change status counts (create, status update, archive) recalculates the parent goal's `status` and `progress` — a client never has to call a separate "recompute" endpoint; reading a goal always reflects current task state.
+All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop behavior:** every task mutation that can change status counts (create, status update, archive) recalculates the parent goal's `status` and `progress` — a client never has to call a separate "recompute" endpoint; reading a goal always reflects current task state. **Phase 10:** both entities inherit `organizationId` from their parent at creation (never caller input); read/create/update require any org `MEMBER`, archive/delete require the creator or an org `ADMIN`/`OWNER` — same rule as `/projects`.
 
 ## Current endpoints (`/services/execution`)
 

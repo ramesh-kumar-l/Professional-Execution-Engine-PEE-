@@ -35,7 +35,9 @@
       "Bash(node -e \"console.log\\(require\\('./node_modules/nativewind/node_modules/react-native/package.json'\\).version\\)\")",
       "Bash(node -e \"console.log\\(require.resolve\\('react-native/package.json'\\)\\)\")",
       "Bash(node -e \"console.log\\(require\\('./apps/mobile/node_modules/expo/package.json'\\).dependencies['expo-modules-core']\\)\")",
-      "Bash(node -e \"console.log\\(require\\('./node_modules/@testing-library/react-native/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@testing-library/react-native/package.json'\\).version\\)\")",
+      "Bash(DATABASE_URL=\"postgresql://user:pass@localhost:5432/db\" npx prisma format --schema=prisma/schema.prisma)",
+      "Bash(DATABASE_URL=\"postgresql://user:pass@localhost:5432/db\" npx prisma generate --schema=prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Ramesh\\AppData\\Roaming\\Electron"

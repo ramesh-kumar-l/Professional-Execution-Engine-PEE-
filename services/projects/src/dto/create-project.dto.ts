@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateProjectDto {
   @IsString()
@@ -10,4 +10,9 @@ export class CreateProjectDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  /** Omit to default to the caller's personal organization (Phase 10). */
+  @IsOptional()
+  @IsUUID()
+  organizationId?: string;
 }

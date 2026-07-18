@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 9 — Mobile. Complete (2026-07-18).**
+**Phase 10 — Enterprise. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), Phase 6 (AI Integration), Phase 7 (Analytics), and Phase 8 (Desktop) are complete. Phase 9 is implemented: a new Expo/React Native app (`apps/mobile`) with a `MobileStore` (expo-sqlite-backed, `LocalStore`'s exact method surface) and a `MobileSyncClient` (a line-for-line port of `SyncClient`'s pull/push/conflict-resolution algorithm) — the exit criteria's "or an equivalent" clause, since Prisma's query engine has no Android/iOS binary target and literal reuse of `packages/local-client` is technically impossible on this runtime (`adr/0008`). `@pee/types` and the `services/sync` REST contract are reused completely unmodified. A NativeWind renderer reuses `apps/web`'s Tailwind conventions and calls the exact same REST contracts as `apps/desktop` for surfaces outside the sync scope (execution timers, AI suggestions, analytics — online-only by design). No backend endpoint or Postgres schema changed this phase. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), Phase 6 (AI Integration), Phase 7 (Analytics), Phase 8 (Desktop), and Phase 9 (Mobile) are complete. Phase 10 is implemented: a new `Organization`/`Membership` model (`adr/0009`) — every user gets an invisible personal org + `OWNER` membership at registration; `Project` gains `organizationId`, `Goal`/`Task` denormalize it from their parent; any org member (`MEMBER`+) can read/create/update, only the creator or an `ADMIN`/`OWNER` can archive/delete. A new `services/organizations` (`@pee/organizations`) module owns it. RBAC retrofits `ProjectsService`/`GoalsService`/`TasksService` only — `services/execution`/`services/ai`/`services/sync` needed zero code changes since they delegate writes through those same services. SSO is additive: OIDC via Auth.js's native `type: 'oidc'` provider (this backend only provisions users after Auth.js's own verified exchange), SAML via a self-built SP (`@node-saml/node-saml`) behind an OAuth2-shaped façade since Auth.js has no native SAML provider type. Both are feature-flagged off by default. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -181,8 +181,26 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest: `screens/GoalDetailScreen.tsx`, 138 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 10 — Enterprise
+
+| Deliverable | Status |
+|---|---|
+| `adr/0009` — Organization/Membership/role model, request-scoped (not session-scoped) org resolution, 404-vs-403 refinement, OIDC-native-vs-SAML-bridged architecture split, and the `@pee/auth` ⇄ `@pee/organizations` circular-package-dependency fix | Done |
+| `Organization`/`Membership`/`SsoIdentity` models + `organizationId` on `Project`/`Goal`/`Task`; `User.passwordHash` made nullable (SSO-only users) | Done |
+| New `services/organizations` (`@pee/organizations`) — `OrganizationsService`/`MembershipManagementService`, `OrganizationRolesGuard`+`@RequireRole()`, `/organizations` + `/organizations/:id/members` REST endpoints | Done |
+| `ProjectsService`/`GoalsService`/`TasksService` retrofit — `findAccessibleOrThrow` (membership-based), org-scoped `create`, `assertDestructivePermission` on `archive` | Done |
+| `services/execution`/`services/ai`/`services/sync` — zero code changes; verified they delegate through the retrofitted domain services | Done |
+| SSO: OIDC via Auth.js's native provider + `POST /auth/sso/oidc/provision`; SAML via a real SP (`@node-saml/node-saml`) behind an OAuth2 façade (`saml/`); shared `SsoProvisioningService`; `GET /auth/sso/status` | Done |
+| `apps/web` — `dashboard/layout.tsx` (first shared shell + org switcher), `/dashboard/organizations` + `/dashboard/organizations/[id]/members`, org selector on the project form, conditional SSO login buttons | Done |
+| Unit tests (51 in `@pee/auth`, 27 in `@pee/organizations`, plus extended RBAC cases in `@pee/projects`/`@pee/planning`, plus 8 new `apps/web` Vitest tests — 319 total across the workspace) | Done |
+| Integration/e2e tests (`services/organizations/test/organizations.e2e-spec.ts`, extended `services/projects/test/projects.e2e-spec.ts`, `apps/web/e2e/organizations.spec.ts` — Docker Postgres required) | Written, wired into CI — not run in the authoring sandbox (no Docker there) |
+| Security review pass: constant-time secret comparison (`SsoProvisionGuard`), origin-parsed (not prefix-matched) SAML redirect allow-list, both with dedicated regression tests | Done |
+| `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace | Done |
+| Every new/edited file under ~300 lines | Done (largest: `goals.service.ts`, 220 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, and 9 are done. **Phase 10 — Enterprise** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once, and get a real Android emulator/iOS Simulator running to execute `apps/mobile`'s Detox e2e spec — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 9, and 10 are done — **Phase 10 was the last phase defined in the roadmap.** No further product phase is currently scoped; remaining work lives entirely in [27-backlog.md](27-backlog.md) (generate/apply the first Prisma migration and run every Docker-dependent e2e suite at least once; run `apps/mobile`'s Detox e2e on a real device; a real vendor-credentialed AI smoke test; local SQLite file-at-rest encryption on both native clients; SAML SLO/multi-IdP/client-credential validation; org-visibility for execution/AI/analytics; email-token-based invites) — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

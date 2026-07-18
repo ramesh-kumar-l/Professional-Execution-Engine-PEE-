@@ -4,6 +4,8 @@ import type {
   PaginatedResponse,
   ProjectResponse,
   ProjectStatus,
+  SsoProvisionResponse,
+  SsoStatusResponse,
   UpdateProjectRequest,
   UserProfile,
 } from '@pee/types';
@@ -54,12 +56,35 @@ export async function registerRequest(
   return { error: body.message ?? 'Registration failed' };
 }
 
+/** Public — no auth needed. login/page.tsx uses this to decide which SSO buttons to render. */
+export async function ssoStatusRequest(): Promise<SsoStatusResponse> {
+  const res = await fetch(`${baseUrl}/auth/sso/status`, { cache: 'no-store' });
+  if (!res.ok) return { oidc: false, saml: false };
+  return res.json();
+}
+
 export async function logoutRequest(refreshToken: string): Promise<void> {
   await fetch(`${baseUrl}/auth/logout`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   }).catch(() => undefined);
+}
+
+/** Server-to-server, secret-header-guarded — see services/auth's SsoProvisionGuard. */
+export async function provisionOidcUser(input: {
+  providerName: string;
+  providerUserId: string;
+  email: string;
+  displayName: string;
+}): Promise<SsoProvisionResponse | null> {
+  const res = await fetch(`${baseUrl}/auth/sso/oidc/provision`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-sso-internal-secret': process.env.SSO_INTERNAL_SECRET ?? '' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) return null;
+  return res.json();
 }
 
 export function authHeaders(accessToken: string): Record<string, string> {
@@ -69,8 +94,11 @@ export function authHeaders(accessToken: string): Record<string, string> {
 export async function listProjects(
   accessToken: string,
   status: ProjectStatus = 'ACTIVE',
+  organizationId?: string,
 ): Promise<PaginatedResponse<ProjectResponse>> {
-  const res = await fetch(`${baseUrl}/projects?status=${status}`, {
+  const query = new URLSearchParams({ status });
+  if (organizationId) query.set('organizationId', organizationId);
+  const res = await fetch(`${baseUrl}/projects?${query.toString()}`, {
     headers: authHeaders(accessToken),
     cache: 'no-store',
   });

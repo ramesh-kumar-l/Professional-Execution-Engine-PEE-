@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Prisma, PrismaService, Task } from '@pee/database';
+import { OrganizationsService } from '@pee/organizations';
 import { PaginatedResponse, TASK_STATUS_CHANGED_EVENT, TaskResponse } from '@pee/types';
 import { GoalsService } from '../goals/goals.service';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -12,12 +13,14 @@ export class TasksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly goalsService: GoalsService,
+    private readonly organizationsService: OrganizationsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   /**
    * `options` is populated only by internal callers (e.g. sync push) — never bound to the
    * public HTTP DTO, so a client can't set its own id/updatedAt through the plain REST endpoint.
+   * `organizationId` is always inherited from the parent Goal (Phase 10), never caller-supplied.
    */
   async create(
     ownerId: string,
@@ -25,12 +28,13 @@ export class TasksService {
     dto: CreateTaskDto,
     options?: { id?: string; updatedAt?: Date },
   ): Promise<TaskResponse> {
-    await this.goalsService.getOne(ownerId, goalId);
+    const goal = await this.goalsService.getOne(ownerId, goalId);
     const task = await this.prisma.task.create({
       data: {
         id: options?.id,
         goalId,
         ownerId,
+        organizationId: goal.organizationId,
         title: dto.title,
         description: dto.description,
         order: dto.order ?? 0,
@@ -48,13 +52,13 @@ export class TasksService {
     return this.toResponse(task);
   }
 
+  /** Any member of the goal's organization sees every task under it, not just their own (Phase 10). */
   async list(ownerId: string, goalId: string, query: ListTasksQueryDto): Promise<PaginatedResponse<TaskResponse>> {
     await this.goalsService.getOne(ownerId, goalId);
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where: Prisma.TaskWhereInput = {
       goalId,
-      ownerId,
       status: query.status ?? { not: 'ARCHIVED' },
     };
 
@@ -78,7 +82,7 @@ export class TasksService {
   }
 
   async getOne(ownerId: string, id: string): Promise<TaskResponse> {
-    const task = await this.findOwnedOrThrow(ownerId, id);
+    const task = await this.findAccessibleOrThrow(ownerId, id);
     return this.toResponse(task);
   }
 
@@ -88,7 +92,7 @@ export class TasksService {
     dto: UpdateTaskDto,
     options?: { updatedAt?: Date },
   ): Promise<TaskResponse> {
-    const existing = await this.findOwnedOrThrow(ownerId, id);
+    const existing = await this.findAccessibleOrThrow(ownerId, id);
     const task = await this.prisma.task.update({
       where: { id },
       data: {
@@ -115,8 +119,10 @@ export class TasksService {
     return this.toResponse(task);
   }
 
+  /** Archiving is destructive: only the creator or an org ADMIN/OWNER may do it (Phase 10). */
   async archive(ownerId: string, id: string): Promise<void> {
-    const task = await this.findOwnedOrThrow(ownerId, id);
+    const task = await this.findAccessibleOrThrow(ownerId, id);
+    await this.assertDestructivePermission(ownerId, task);
     if (task.status === 'ARCHIVED') {
       return;
     }
@@ -131,12 +137,21 @@ export class TasksService {
     });
   }
 
-  private async findOwnedOrThrow(ownerId: string, id: string): Promise<Task> {
+  /** Not-a-member stays 404 (existence-hiding); any member (MEMBER+) may read/update. See adr/0009. */
+  private async findAccessibleOrThrow(userId: string, id: string): Promise<Task> {
     const task = await this.prisma.task.findUnique({ where: { id } });
-    if (!task || task.ownerId !== ownerId) {
+    if (!task) {
       throw new NotFoundException('Task not found');
     }
+    await this.organizationsService.assertRole(userId, task.organizationId, 'MEMBER');
     return task;
+  }
+
+  private async assertDestructivePermission(userId: string, task: Task): Promise<void> {
+    if (task.ownerId === userId) {
+      return;
+    }
+    await this.organizationsService.assertRole(userId, task.organizationId, 'ADMIN');
   }
 
   private toResponse(task: Task): TaskResponse {
@@ -144,6 +159,7 @@ export class TasksService {
       id: task.id,
       goalId: task.goalId,
       ownerId: task.ownerId,
+      organizationId: task.organizationId,
       title: task.title,
       description: task.description,
       status: task.status,

@@ -8,6 +8,7 @@ import { AnalyticsModule } from '@pee/analytics';
 import { AuthModule } from '@pee/auth';
 import { PrismaModule } from '@pee/database';
 import { ExecutionModule } from '@pee/execution';
+import { OrganizationsModule } from '@pee/organizations';
 import { PlanningModule } from '@pee/planning';
 import { ProjectsModule } from '@pee/projects';
 import { SyncModule } from '@pee/sync';
@@ -20,6 +21,7 @@ import { HealthController } from './health.controller';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     PrismaModule,
     AuthModule,
+    OrganizationsModule,
     ProjectsModule,
     PlanningModule,
     ExecutionModule,

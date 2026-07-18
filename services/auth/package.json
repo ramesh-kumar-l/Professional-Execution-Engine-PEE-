@@ -16,6 +16,7 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/throttler": "^5.1.2",
+    "@node-saml/node-saml": "^5.1.0",
     "@pee/database": "*",
     "@pee/types": "*",
     "argon2": "^0.41.1",

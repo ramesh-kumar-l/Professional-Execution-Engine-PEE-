@@ -57,28 +57,94 @@ enum AIRecommendationStatus {
   FAILED
 }
 
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum SsoProvider {
+  OIDC
+  SAML
+}
+
 // Client-generated UUID primary keys + updatedAt/version columns on every
 // syncable table, per adr/0003 (keeps offline sync possible later without
 // a schema rewrite).
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  passwordHash  String
-  displayName   String
-  role          UserRole       @default(USER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  version       Int            @default(1)
-  refreshTokens RefreshToken[]
-  auditLogs     AuthAuditLog[]
-  projects      Project[]
-  goals         Goal[]
-  tasks         Task[]
+  id                String                 @id @default(uuid())
+  email             String                 @unique
+  // Nullable: an SSO-only user (Phase 10) is provisioned with no password at all,
+  // not a placeholder hash — login() rejects password auth for such an account.
+  passwordHash      String?
+  displayName       String
+  role              UserRole               @default(USER)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  version           Int                    @default(1)
+  refreshTokens     RefreshToken[]
+  auditLogs         AuthAuditLog[]
+  projects          Project[]
+  goals             Goal[]
+  tasks             Task[]
   executionSessions TaskExecutionSession[]
   executionEvents   ExecutionEvent[]
   aiRecommendations AIRecommendation[]
+  memberships       Membership[]
+  ssoIdentities     SsoIdentity[]
 
   @@map("users")
+}
+
+// Phase 10 (Enterprise): a tenant. Every user gets exactly one
+// isPersonal=true Organization + OWNER Membership at registration, so
+// every pre-existing single-user flow keeps working unchanged underneath
+// an invisible personal workspace. See adr/0009.
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  isPersonal  Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  version     Int          @default(1)
+  memberships Membership[]
+  projects    Project[]
+
+  @@map("organizations")
+}
+
+model Membership {
+  id             String         @id @default(uuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           MembershipRole @default(MEMBER)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  version        Int            @default(1)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+// Links a User to an external identity provider account (Phase 10 SSO).
+// providerUserId is the OIDC `sub` claim or the SAML NameID. See adr/0009.
+model SsoIdentity {
+  id             String      @id @default(uuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       SsoProvider
+  providerName   String
+  providerUserId String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  version        Int         @default(1)
+
+  @@unique([provider, providerName, providerUserId])
+  @@index([userId])
+  @@map("sso_identities")
 }
 
 model RefreshToken {
@@ -115,67 +181,78 @@ model AuthAuditLog {
 }
 
 model Project {
-  id          String        @id @default(uuid())
-  ownerId     String
-  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  status      ProjectStatus @default(ACTIVE)
-  archivedAt  DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  version     Int           @default(1)
-  goals       Goal[]
+  id             String        @id @default(uuid())
+  ownerId        String
+  owner          User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  archivedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  version        Int           @default(1)
+  goals          Goal[]
 
   @@index([ownerId])
   @@index([ownerId, updatedAt])
+  @@index([organizationId])
   @@map("projects")
 }
 
 model Goal {
-  id          String     @id @default(uuid())
-  projectId   String
-  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  ownerId     String
-  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  status      GoalStatus @default(NOT_STARTED)
-  targetDate  DateTime?
-  completedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  version     Int        @default(1)
-  tasks       Task[]
-  executionEvents ExecutionEvent[]
+  id                String             @id @default(uuid())
+  projectId         String
+  project           Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ownerId           String
+  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Denormalized from the parent Project at creation time, same rationale
+  // as ownerId above (Phase 10 — keeps org-membership checks O(1)).
+  organizationId    String
+  title             String
+  description       String?
+  status            GoalStatus         @default(NOT_STARTED)
+  targetDate        DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  version           Int                @default(1)
+  tasks             Task[]
+  executionEvents   ExecutionEvent[]
   aiRecommendations AIRecommendation[]
 
   @@index([projectId])
   @@index([ownerId])
   @@index([ownerId, updatedAt])
+  @@index([organizationId])
   @@map("goals")
 }
 
 model Task {
-  id          String     @id @default(uuid())
-  goalId      String
-  goal        Goal       @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  ownerId     String
-  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  title       String
-  description String?
-  status      TaskStatus @default(TODO)
-  order       Int        @default(0)
-  completedAt DateTime?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  version     Int        @default(1)
+  id                String                 @id @default(uuid())
+  goalId            String
+  goal              Goal                   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  ownerId           String
+  owner             User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  // Denormalized from the parent Goal at creation time, same rationale as
+  // Goal.organizationId (Phase 10 — keeps org-membership checks O(1)).
+  organizationId    String
+  title             String
+  description       String?
+  status            TaskStatus             @default(TODO)
+  order             Int                    @default(0)
+  completedAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  version           Int                    @default(1)
   executionSessions TaskExecutionSession[]
   executionEvents   ExecutionEvent[]
 
   @@index([goalId])
   @@index([ownerId])
   @@index([ownerId, updatedAt])
+  @@index([organizationId])
   @@map("tasks")
 }
 

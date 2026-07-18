@@ -17,6 +17,7 @@ export interface TaskResponse {
   id: string;
   goalId: string;
   ownerId: string;
+  organizationId: string;
   title: string;
   description: string | null;
   status: TaskStatus;

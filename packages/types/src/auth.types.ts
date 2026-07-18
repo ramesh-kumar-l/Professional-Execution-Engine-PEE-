@@ -20,11 +20,19 @@ export interface AuthTokens {
   refreshTokenExpiresAt: string;
 }
 
+export interface UserOrganizationSummary {
+  id: string;
+  name: string;
+  isPersonal: boolean;
+  role: 'OWNER' | 'ADMIN' | 'MEMBER';
+}
+
 export interface UserProfile {
   id: string;
   email: string;
   displayName: string;
   role: 'USER';
+  organizations: UserOrganizationSummary[];
 }
 
 export interface AuthSession {

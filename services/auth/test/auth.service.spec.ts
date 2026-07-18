@@ -20,9 +20,22 @@ describe('AuthService', () => {
     role: 'USER',
   };
 
+  const personalOrg = {
+    id: 'org-1',
+    name: "Ada's Workspace",
+    isPersonal: true,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
   beforeEach(() => {
     prisma = {
       user: { findUnique: jest.fn(), create: jest.fn(), findUniqueOrThrow: jest.fn() },
+      organization: { create: jest.fn().mockResolvedValue(personalOrg) },
+      membership: {
+        create: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([{ role: 'OWNER', organization: personalOrg }]),
+      },
       refreshToken: {
         findUnique: jest.fn(),
         create: jest.fn(),
@@ -30,6 +43,7 @@ describe('AuthService', () => {
         updateMany: jest.fn(),
         findUniqueOrThrow: jest.fn(),
       },
+      $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(prisma)),
     };
     passwordService = { hash: jest.fn(), verify: jest.fn() } as unknown as jest.Mocked<PasswordService>;
     tokenService = {
@@ -40,12 +54,7 @@ describe('AuthService', () => {
     } as unknown as jest.Mocked<TokenService>;
     auditLog = { record: jest.fn() } as unknown as jest.Mocked<AuditLogService>;
 
-    service = new AuthService(
-      prisma as unknown as PrismaService,
-      passwordService,
-      tokenService,
-      auditLog,
-    );
+    service = new AuthService(prisma as unknown as PrismaService, passwordService, tokenService, auditLog);
   });
 
   describe('register', () => {
@@ -57,7 +66,7 @@ describe('AuthService', () => {
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it('hashes the password and returns a profile without the hash', async () => {
+    it('hashes the password, creates a personal organization, and returns a profile without the hash', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       passwordService.hash.mockResolvedValue('hashed-pw');
       prisma.user.create.mockResolvedValue(user);
@@ -65,7 +74,21 @@ describe('AuthService', () => {
       const profile = await service.register({ email: user.email, password: 'plain', displayName: 'Ada' });
 
       expect(passwordService.hash).toHaveBeenCalledWith('plain');
-      expect(profile).toEqual({ id: user.id, email: user.email, displayName: user.displayName, role: 'USER' });
+      expect(prisma.organization.create).toHaveBeenCalledWith({
+        data: { name: "Ada's Workspace", isPersonal: true },
+      });
+      expect(prisma.membership.create).toHaveBeenCalledWith({
+        data: { organizationId: personalOrg.id, userId: user.id, role: 'OWNER' },
+      });
+      expect(profile).toEqual({
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: 'USER',
+        organizations: [
+          { id: personalOrg.id, name: personalOrg.name, isPersonal: true, role: 'OWNER' },
+        ],
+      });
       expect(profile).not.toHaveProperty('passwordHash');
     });
   });
@@ -85,6 +108,15 @@ describe('AuthService', () => {
       await expect(service.login({ email: user.email, password: 'wrong' }, {})).rejects.toThrow(
         UnauthorizedException,
       );
+      expect(auditLog.record).toHaveBeenCalledWith('LOGIN_FAILURE', user.id, {});
+    });
+
+    it('rejects password login for an SSO-only user with no passwordHash (Phase 10)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, passwordHash: null });
+      await expect(service.login({ email: user.email, password: 'anything' }, {})).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(passwordService.verify).not.toHaveBeenCalled();
       expect(auditLog.record).toHaveBeenCalledWith('LOGIN_FAILURE', user.id, {});
     });
 

@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PrismaService, User } from '@pee/database';
-import { AuthTokens, UserProfile } from '@pee/types';
+import { AuthTokens, UserOrganizationSummary, UserProfile } from '@pee/types';
 import { AuditLogService, RequestMeta } from './audit-log.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -23,23 +23,44 @@ export class AuthService {
     }
 
     const passwordHash = await this.passwordService.hash(dto.password);
-    const user = await this.prisma.user.create({
-      data: { email: dto.email, passwordHash, displayName: dto.displayName },
-    });
-
+    const user = await this.createUserWithPersonalOrganization(dto.email, dto.displayName, passwordHash);
     return this.toProfile(user);
+  }
+
+  /**
+   * Creates the User and its invisible personal Organization+OWNER Membership in one
+   * `$transaction` (Phase 10) — every pre-existing single-user flow keeps working
+   * unchanged underneath a personal workspace. `passwordHash` is `null` for an SSO-only
+   * user (Phase 10 OIDC/SAML provisioning, `sso/sso-provisioning.service.ts`), which is
+   * why this is shared rather than duplicated for that path.
+   *
+   * Inlines the Organization/Membership inserts via raw Prisma instead of calling
+   * `@pee/organizations`' `OrganizationsService` — that package's controllers need
+   * `CurrentUser`/`JwtAuthGuard` from this one, so importing it here would be a
+   * circular package dependency (confirmed by a runtime `require()` cycle when tried).
+   * See adr/0009 and `08-backend-guidelines.md`.
+   */
+  async createUserWithPersonalOrganization(email: string, displayName: string, passwordHash: string | null): Promise<User> {
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({ data: { email, passwordHash, displayName } });
+      const organization = await tx.organization.create({
+        data: { name: `${displayName}'s Workspace`, isPersonal: true },
+      });
+      await tx.membership.create({ data: { organizationId: organization.id, userId: created.id, role: 'OWNER' } });
+      return created;
+    });
   }
 
   async login(dto: LoginDto, meta: RequestMeta): Promise<{ user: UserProfile; tokens: AuthTokens }> {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user || !(await this.passwordService.verify(dto.password, user.passwordHash))) {
+    if (!user || !user.passwordHash || !(await this.passwordService.verify(dto.password, user.passwordHash))) {
       await this.auditLog.record('LOGIN_FAILURE', user?.id ?? null, meta);
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const tokens = await this.issueTokenPair(user);
+    const tokens = await this.issueTokensForUser(user);
     await this.auditLog.record('LOGIN_SUCCESS', user.id, meta);
-    return { user: this.toProfile(user), tokens };
+    return { user: await this.toProfile(user), tokens };
   }
 
   async refresh(rawRefreshToken: string, meta: RequestMeta): Promise<AuthTokens> {
@@ -63,7 +84,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    const tokens = await this.issueTokenPair(existing.user);
+    const tokens = await this.issueTokensForUser(existing.user);
     await this.rotateToken(existing.id, tokens);
     await this.auditLog.record('TOKEN_REFRESH', existing.userId, meta);
     return tokens;
@@ -88,7 +109,8 @@ export class AuthService {
     return this.toProfile(user);
   }
 
-  private async issueTokenPair(user: User): Promise<AuthTokens> {
+  /** Public so SSO provisioning (OIDC/SAML, Phase 10) can issue the same token pair password login gets. */
+  async issueTokensForUser(user: User): Promise<AuthTokens> {
     const access = this.tokenService.signAccessToken({ sub: user.id, email: user.email, role: user.role });
     const refresh = this.tokenService.generateRefreshToken();
 
@@ -121,7 +143,32 @@ export class AuthService {
     });
   }
 
-  private toProfile(user: User): UserProfile {
-    return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
+  /**
+   * Reads Membership/Organization directly via Prisma rather than `@pee/organizations`'
+   * `OrganizationsService` (see `createUserWithPersonalOrganization`'s comment on the
+   * circular-package-dependency reason) — the same read-only-direct-Prisma carve-out
+   * `@pee/analytics` already uses: this is a self-scoped read (the caller's own
+   * memberships), no cross-user authorization decision is made from it.
+   */
+  private async toProfile(user: User): Promise<UserProfile> {
+    const memberships = await this.prisma.membership.findMany({
+      where: { userId: user.id },
+      include: { organization: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const organizations: UserOrganizationSummary[] = memberships.map((membership) => ({
+      id: membership.organization.id,
+      name: membership.organization.name,
+      isPersonal: membership.organization.isPersonal,
+      role: membership.role,
+    }));
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      organizations,
+    };
   }
 }

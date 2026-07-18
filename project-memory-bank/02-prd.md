@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 9 (Mobile) written and implemented, 2026-07-18.**
+**Status: Phase 10 (Enterprise) written and implemented, 2026-07-18 — the last phase currently defined.**
 
 ## Phase 1 — Authentication
 
@@ -229,6 +229,36 @@
   - [x] Every new/edited file stays under ~300 lines (largest: `screens/GoalDetailScreen.tsx`, 138 lines)
   - [ ] Detox e2e spec written and CI-wired but **not run** in this sandbox — no Android emulator/iOS Simulator available; honestly documented, not claimed as verified
   - [ ] Code signing, EAS cloud build, local SQLite file-at-rest encryption — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 10 — Enterprise
+
+- **Objective:** Add multi-tenancy, role-based access control, and enterprise SSO (OIDC/SAML as additive Auth.js providers) on top of the Phase 1-9 foundation — the exit criteria this phase is literally scoped against.
+- **Current state:** Every domain entity was single-owner (`ownerId`); `UserRole` had exactly one value; auth was email/password only.
+- **Desired state:** An `Organization`/`Membership` model (every user gets an invisible personal org at registration); any org member can read/create/update `Project`/`Goal`/`Task`, only the creator or an org `ADMIN`/`OWNER` can archive/delete; OIDC login via Auth.js's native provider; SAML login via a self-built SP behind an OAuth2-shaped façade (Auth.js has no native SAML provider type).
+- **Required APIs:** `POST/GET /organizations`, `GET /organizations/:id`, `GET/POST /organizations/:id/members`, `PATCH/DELETE /organizations/:id/members/:userId`, `GET /auth/sso/status`, `POST /auth/sso/oidc/provision` (secret-guarded, server-to-server), `GET /auth/sso/saml/authorize`, `POST /auth/sso/saml/acs`, `POST /auth/sso/saml/token`, `GET /auth/sso/saml/userinfo` — see [11-api-contract.md](11-api-contract.md). No existing endpoint's contract broke — `organizationId` is additive on `CreateProjectRequest`/`ListProjectsQuery`/every response.
+- **Database impact:** New `Organization`/`Membership`/`SsoIdentity` tables; `Project`/`Goal`/`Task` gain `organizationId`; `User.passwordHash` becomes nullable — see [10-database-design.md](10-database-design.md).
+- **UI impact:** New `/dashboard/organizations` + `/dashboard/organizations/[id]/members` pages, a first shared `/dashboard/layout.tsx` shell with an org switcher, an organization selector on the new-project form, conditional SSO buttons on `/login`.
+- **AI impact:** None — `services/ai` needed zero code changes (it delegates writes through `@pee/planning`, which inherited org-scoping automatically).
+- **Testing strategy:** Unit (`OrganizationsService`/`MembershipManagementService`/`OrganizationRolesGuard`, extended `ProjectsService`/`GoalsService`/`TasksService` RBAC cases, `SsoProvisioningService`, a real cryptographic fail-closed test against `@node-saml/node-saml` for malformed/unsigned SAML responses, a dedicated regression test for the redirect-allowlist open-redirect fix), integration/e2e (`services/organizations/test/organizations.e2e-spec.ts`, an extended `services/projects/test/projects.e2e-spec.ts` cross-member/RBAC case, `apps/web/e2e/organizations.spec.ts` — all Docker-Postgres-dependent, not run in the authoring sandbox).
+- **Migration requirements:** Adds `Organization`/`Membership`/`SsoIdentity` to the existing Prisma schema; same unresolved Docker-dependent no-migration-ever-generated gap carried forward from every prior phase.
+- **Observability impact:** None new — no audit-logging pattern was extended to organization/membership actions this phase (tracked as a natural extension of the existing "general domain-entity audit trail" backlog entry, not newly introduced).
+- **Security considerations:** `SsoProvisionGuard` uses a constant-time secret comparison (`crypto.timingSafeEqual`) — a plain `!==` would let an attacker infer the shared secret byte-by-byte via timing. The SAML bridge's redirect allow-list compares parsed URL origins, not a string prefix — `redirectUri.startsWith(allowedOrigin)` would have let `https://app.example.com.evil.com/...` through, a classic open-redirect bypass; both were found during this phase's own security review pass and fixed with dedicated regression tests, not left as latent bugs. See [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `16-roadmap.md`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, `adr/0009-multi-tenancy-rbac-sso.md`.
+- **Acceptance criteria:**
+  - [x] `Organization`/`Membership` model implemented; every user gets a personal org + `OWNER` membership at registration
+  - [x] Any org `MEMBER`+ can read/create/update `Project`/`Goal`/`Task`; only the creator or an `ADMIN`/`OWNER` can archive/delete
+  - [x] `services/execution`/`services/ai`/`services/sync` required zero code changes — verified by tracing, not assumed
+  - [x] OIDC login implemented via Auth.js's native `type: 'oidc'` provider + a secret-guarded provisioning endpoint
+  - [x] SAML login implemented via a real SP (`@node-saml/node-saml`) behind an OAuth2-shaped façade, since Auth.js has no native SAML provider type
+  - [x] Both SSO providers feature-flagged off by default (fail-closed); `GET /auth/sso/status` gates the frontend buttons
+  - [x] A genuine circular package dependency (`@pee/auth` ⇄ `@pee/organizations`) was found (a real runtime `TypeError`, not a theoretical concern) and fixed
+  - [x] Two real security issues found in review and fixed (timing-safe secret comparison, origin-parsed redirect allow-list), each with a dedicated regression test
+  - [x] Unit tests passing (319 total across the workspace, up from 256)
+  - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest: `goals.service.ts`, 220 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from every prior phase)
+  - [ ] SAML SLO, multi-IdP support, encrypted assertions, client-credential validation on the bridge; email-token-based invites; org-wide visibility for execution/AI/analytics — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

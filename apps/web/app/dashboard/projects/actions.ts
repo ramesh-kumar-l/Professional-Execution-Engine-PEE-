@@ -13,8 +13,13 @@ export async function createProjectAction(formData: FormData): Promise<ProjectFo
 
   const name = String(formData.get('name') ?? '');
   const description = String(formData.get('description') ?? '');
+  const organizationId = formData.get('organizationId');
 
-  const result = await createProject(session.accessToken, { name, description: description || undefined });
+  const result = await createProject(session.accessToken, {
+    name,
+    description: description || undefined,
+    organizationId: organizationId ? String(organizationId) : undefined,
+  });
   if ('error' in result) {
     return { error: result.error };
   }

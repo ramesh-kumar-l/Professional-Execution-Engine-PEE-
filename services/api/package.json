@@ -21,6 +21,7 @@
     "@pee/auth": "*",
     "@pee/database": "*",
     "@pee/execution": "*",
+    "@pee/organizations": "*",
     "@pee/planning": "*",
     "@pee/projects": "*",
     "@pee/sync": "*",

@@ -3,10 +3,14 @@ import { auth } from '@/auth';
 import { listProjects } from '@/lib/api-client';
 import { archiveProjectAction } from './actions';
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: { organizationId?: string };
+}) {
   const session = await auth();
   const { data: projects } = session?.accessToken
-    ? await listProjects(session.accessToken)
+    ? await listProjects(session.accessToken, 'ACTIVE', searchParams.organizationId)
     : { data: [] };
 
   return (

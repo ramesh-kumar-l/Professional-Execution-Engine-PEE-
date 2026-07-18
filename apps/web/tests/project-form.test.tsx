@@ -41,4 +41,38 @@ describe('ProjectForm', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not create project/i));
   });
+
+  it('renders no organization picker when the caller belongs to only one organization', () => {
+    const action = vi.fn().mockResolvedValue({});
+    render(
+      <ProjectForm
+        action={action}
+        organizations={[{ id: 'org-1', name: 'Personal', isPersonal: true }]}
+        submitLabel="Create project"
+      />,
+    );
+    expect(screen.queryByLabelText(/organization/i)).not.toBeInTheDocument();
+  });
+
+  it('lets the caller pick an organization when they belong to more than one', async () => {
+    const action = vi.fn().mockResolvedValue({});
+    render(
+      <ProjectForm
+        action={action}
+        organizations={[
+          { id: 'org-1', name: 'Personal', isPersonal: true },
+          { id: 'org-2', name: 'Acme Inc', isPersonal: false },
+        ]}
+        submitLabel="Create project"
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/name/i), { target: { value: 'Website Relaunch' } });
+    fireEvent.change(screen.getByLabelText(/organization/i), { target: { value: 'org-2' } });
+    fireEvent.click(screen.getByRole('button', { name: /create project/i }));
+
+    await waitFor(() => expect(action).toHaveBeenCalled());
+    const formData = action.mock.calls[0][0] as FormData;
+    expect(formData.get('organizationId')).toBe('org-2');
+  });
 });

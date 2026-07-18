@@ -38,10 +38,10 @@ Estimated value: Table-stakes account-recovery flow.
 
 ### Multi-user project sharing
 Description: Let more than one user access/edit a project (membership, per-project roles).
-Reason: Out of scope for Phase 2 MVP; single-owner (`ownerId`) model is sufficient until a real feature needs sharing.
-Priority: Medium.
-Potential dependencies: A permissions/roles model beyond the current single `role` field on `User`.
-Estimated value: Needed once any collaborative feature (e.g. shared Tasks) exists.
+Reason: Out of scope for Phase 2 MVP; single-owner (`ownerId`) model was sufficient until a real feature needed sharing.
+Priority: **Resolved by Phase 10** — `Organization`/`Membership` (org-level, not per-project) now provides exactly this: any org `MEMBER`+ can read/create/update a project created by a teammate, only the creator or an `ADMIN`/`OWNER` can archive/delete it. Left here for history; the remaining gap is *per-project* (not per-org) role overrides, which nothing currently needs.
+Potential dependencies: None blocking.
+Estimated value: Delivered.
 
 ### Project templates and tags/labels
 Description: Predefined project templates and free-form tags/labels for organizing projects.
@@ -66,10 +66,10 @@ Estimated value: Turns a flat task list into a real schedulable plan.
 
 ### Multi-user goal/task collaboration
 Description: Let more than one user see/edit goals and tasks within a shared project.
-Reason: Out of scope for Phase 3 MVP; single-owner (`ownerId`) model mirrors `Project`'s and is sufficient until a real collaborative feature needs it — same reasoning as the existing multi-user project sharing entry.
-Priority: Medium.
-Potential dependencies: Same permissions/roles model gap noted for multi-user project sharing.
-Estimated value: Needed once teams (not just individuals) use the product.
+Reason: Out of scope for Phase 3 MVP; single-owner (`ownerId`) model mirrored `Project`'s.
+Priority: **Resolved by Phase 10** — `Goal`/`Task` inherit `organizationId` from their parent `Project`, so the same org-membership RBAC (any `MEMBER`+ reads/updates, creator-or-`ADMIN` archives) applies automatically.
+Potential dependencies: None blocking.
+Estimated value: Delivered.
 
 ### Task execution session pause/resume
 Description: Let a `TaskExecutionSession` be paused and resumed multiple times instead of a single continuous start→complete span.
@@ -231,3 +231,31 @@ Reason: Deliberately not force-upgraded mid-Phase-1 to avoid pulling in untested
 Priority: Medium — no active exploit path identified for this app's usage, but should not sit indefinitely.
 Potential dependencies: None blocking; standalone upgrade task.
 Estimated value: Clears known CVEs, keeps the stack current.
+
+### Extend org-wide visibility to execution sessions, AI suggestions, and analytics
+Description: `services/execution`/`services/ai` already inherit org-membership access for free (they delegate through `@pee/planning`'s services), but nothing in their own UI/response shape surfaces "which teammate is doing what" — and `services/analytics` stays strictly owner-scoped, computing metrics only over the caller's own rows, not the whole org's.
+Reason: Phase 10 deliberately drew the line at "any code that already delegates through the retrofitted domain services inherits org-scoping automatically" and did not widen `@pee/analytics` (which bypasses those services by design) or add any new org-aware UI. Widening either is real new work, not a retrofit.
+Priority: Medium — natural next step once a team actually wants "what is my org doing" visibility, not just "can my teammates edit my project."
+Potential dependencies: None blocking for execution/AI; `@pee/analytics` would need `organizationId`-scoped query variants added alongside (not instead of) its existing owner-scoped ones.
+Estimated value: Turns "my teammate can edit my project" into "I can see what my team is actually doing."
+
+### Email-token-based organization invites
+Description: Replace `MembershipManagementService.inviteMember`'s current "must already have a PEE account" requirement with a real emailed invite-link/token flow that provisions a new account on acceptance.
+Reason: Phase 10 deliberately scoped invite-by-email to linking an *existing* user only, same deferred-email-service precedent as the "Email verification"/"Password reset" backlog entries — no notifications service exists yet to send an invite email.
+Priority: High — this is a real, felt gap for onboarding genuinely new teammates (not just linking two people who already separately signed up), and it also closes the email-enumeration side-channel the current lookup-based approach has (see [12-security.md](12-security.md)).
+Potential dependencies: A notifications service (SMTP/provider integration) — same dependency the two pre-existing email-flow backlog entries need.
+Estimated value: Makes org onboarding actually usable for a real team, not just a demo of two pre-existing accounts.
+
+### SAML SLO, multi-IdP support, encrypted assertions, and bridge client-credential validation
+Description: The SAML SP built in Phase 10 is deliberately scoped to SP-initiated login only, a single configured IdP, unencrypted (signed-only) assertions, and no `client_id`/`client_secret` validation on the OAuth2-façade bridge's `token` endpoint (a single self-hosted client — `apps/web` — is assumed).
+Reason: Each of these is real SAML SP functionality that a genuine enterprise rollout would eventually need, but none was required to satisfy "SAML as an additive Auth.js provider" for a first implementation — building all of them now would be speculative before any real enterprise customer's IdP requirements are known.
+Priority: Medium — revisit once a real enterprise customer's IdP configuration actually requires one of these (e.g. they mandate SLO, or there's a second SAML-only tenant).
+Potential dependencies: None blocking for a first customer; multi-IdP would need a per-organization IdP-configuration model (currently global env vars, one IdP for the whole deployment).
+Estimated value: Table-stakes for larger enterprise SSO rollouts once one is actually needed.
+
+### Real OIDC/SAML browser login round-trip against a live or locally-mocked IdP
+Description: Actually drive `apps/web`'s full SSO login flow through a browser against a real IdP (Okta/Azure AD/etc.) or a locally-hosted mock one, the way `apps/desktop`'s Playwright e2e genuinely launched the real app.
+Reason: This sandbox has no way to register a real IdP client or stand up a second mock-IdP server alongside Playwright. The SAML SP's cryptographic core *is* genuinely unit-tested (fail-closed against garbage/unsigned input, real `@node-saml/node-saml`, no mock) and `SsoProvisioningService` is fully unit-tested, but the full browser round-trip is not.
+Priority: Medium-High — this is this phase's one remaining "written but never run end-to-end" gap, mirroring `apps/mobile`'s Detox gap from Phase 9.
+Potential dependencies: A real IdP test tenant (Okta/Azure AD developer account) or a self-hosted mock IdP (e.g. a local `oidc-provider` instance) reachable from a Playwright test run.
+Estimated value: Closes the one remaining "never actually seen it work in a browser" gap for Phase 10's headline feature.

@@ -1,6 +1,7 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '@pee/database';
+import { OrganizationsService } from '@pee/organizations';
 import { ProjectsService } from '@pee/projects';
 import { GOAL_STATUS_CHANGED_EVENT } from '@pee/types';
 import { GoalsService } from '../src/goals/goals.service';
@@ -8,15 +9,18 @@ import { GoalsService } from '../src/goals/goals.service';
 describe('GoalsService', () => {
   let prisma: jest.Mocked<any>;
   let projectsService: jest.Mocked<any>;
+  let organizationsService: jest.Mocked<OrganizationsService>;
   let eventEmitter: jest.Mocked<any>;
   let service: GoalsService;
 
   const ownerId = 'owner-1';
   const projectId = 'proj-1';
+  const organizationId = 'org-1';
   const goal = {
     id: 'goal-1',
     projectId,
     ownerId,
+    organizationId,
     title: 'Ship v2',
     description: 'Relaunch the product',
     status: 'NOT_STARTED',
@@ -32,17 +36,21 @@ describe('GoalsService', () => {
       goal: { create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
       task: { count: jest.fn().mockResolvedValue(0) },
     };
-    projectsService = { getOne: jest.fn().mockResolvedValue({ id: projectId, ownerId }) };
+    projectsService = { getOne: jest.fn().mockResolvedValue({ id: projectId, ownerId, organizationId }) };
+    organizationsService = {
+      assertRole: jest.fn().mockResolvedValue({ organizationId, role: 'MEMBER' }),
+    } as unknown as jest.Mocked<OrganizationsService>;
     eventEmitter = { emit: jest.fn() };
     service = new GoalsService(
       prisma as unknown as PrismaService,
       projectsService as unknown as ProjectsService,
+      organizationsService,
       eventEmitter as unknown as EventEmitter2,
     );
   });
 
   describe('create', () => {
-    it('verifies the project is owned by the caller before creating a goal', async () => {
+    it('verifies the project is accessible and inherits its organizationId', async () => {
       prisma.goal.create.mockResolvedValue(goal);
       await service.create(ownerId, projectId, { title: goal.title, description: goal.description });
       expect(projectsService.getOne).toHaveBeenCalledWith(ownerId, projectId);
@@ -51,6 +59,7 @@ describe('GoalsService', () => {
           id: undefined,
           projectId,
           ownerId,
+          organizationId,
           title: goal.title,
           description: goal.description,
           targetDate: undefined,
@@ -59,7 +68,7 @@ describe('GoalsService', () => {
       });
     });
 
-    it('propagates 404 when the project is not owned by the caller', async () => {
+    it('propagates 404 when the project is not accessible to the caller', async () => {
       projectsService.getOne.mockRejectedValue(new NotFoundException('Project not found'));
       await expect(service.create(ownerId, projectId, { title: goal.title })).rejects.toThrow(NotFoundException);
       expect(prisma.goal.create).not.toHaveBeenCalled();
@@ -74,6 +83,7 @@ describe('GoalsService', () => {
           id: 'client-generated-id',
           projectId,
           ownerId,
+          organizationId,
           title: goal.title,
           description: undefined,
           targetDate: undefined,
@@ -84,14 +94,14 @@ describe('GoalsService', () => {
   });
 
   describe('list', () => {
-    it('excludes archived goals by default', async () => {
+    it('excludes archived goals by default and shows every goal under the project, not just the caller\'s', async () => {
       prisma.goal.findMany.mockResolvedValue([goal]);
       prisma.goal.count.mockResolvedValue(1);
 
       const result = await service.list(ownerId, projectId, {});
 
       expect(prisma.goal.findMany).toHaveBeenCalledWith({
-        where: { projectId, ownerId, status: { not: 'ARCHIVED' } },
+        where: { projectId, status: { not: 'ARCHIVED' } },
         orderBy: { createdAt: 'desc' },
         skip: 0,
         take: 20,
@@ -101,7 +111,7 @@ describe('GoalsService', () => {
   });
 
   describe('getOne', () => {
-    it('returns the goal with computed progress when owned by the caller', async () => {
+    it('returns the goal with computed progress when the caller is an org member', async () => {
       prisma.goal.findUnique.mockResolvedValue(goal);
       prisma.task.count.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
 
@@ -110,8 +120,9 @@ describe('GoalsService', () => {
       expect(result.progress).toEqual({ totalTasks: 4, doneTasks: 2, percentComplete: 50 });
     });
 
-    it('throws NotFoundException when the goal belongs to someone else', async () => {
-      prisma.goal.findUnique.mockResolvedValue({ ...goal, ownerId: 'someone-else' });
+    it('throws NotFoundException when the caller is not a member of the organization', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      organizationsService.assertRole.mockRejectedValue(new NotFoundException('Organization not found'));
       await expect(service.getOne(ownerId, goal.id)).rejects.toThrow(NotFoundException);
     });
   });
@@ -134,6 +145,15 @@ describe('GoalsService', () => {
         fromStatus: 'NOT_STARTED',
         toStatus: 'COMPLETED',
       });
+    });
+
+    it('allows any org member (not just the creator) to update', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.goal.update.mockResolvedValue(goal);
+
+      await service.update('teammate-2', goal.id, { title: 'Renamed' });
+
+      expect(organizationsService.assertRole).toHaveBeenCalledWith('teammate-2', organizationId, 'MEMBER');
     });
 
     it('does not emit when status is re-sent unchanged', async () => {
@@ -167,7 +187,7 @@ describe('GoalsService', () => {
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
 
-    it('archives a goal and emits a status-changed event', async () => {
+    it('archives a goal and emits a status-changed event when the caller is the creator', async () => {
       prisma.goal.findUnique.mockResolvedValue(goal);
       await service.archive(ownerId, goal.id);
       expect(prisma.goal.update).toHaveBeenCalledWith({
@@ -181,6 +201,16 @@ describe('GoalsService', () => {
         fromStatus: 'NOT_STARTED',
         toStatus: 'ARCHIVED',
       });
+    });
+
+    it('rejects archiving by a plain MEMBER who is not the creator', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      organizationsService.assertRole
+        .mockResolvedValueOnce({ organizationId, role: 'MEMBER' } as any)
+        .mockRejectedValueOnce(new ForbiddenException('Insufficient role for this action'));
+
+      await expect(service.archive('teammate-2', goal.id)).rejects.toThrow(ForbiddenException);
+      expect(prisma.goal.update).not.toHaveBeenCalled();
     });
   });
 
