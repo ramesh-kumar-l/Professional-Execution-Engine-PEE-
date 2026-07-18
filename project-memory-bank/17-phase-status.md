@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 7 — Analytics. Complete (2026-07-18).**
+**Phase 8 — Desktop. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), and Phase 6 (AI Integration) are complete. Phase 7 is implemented: `services/analytics` (NestJS module — `SummaryService`/`VelocityService`/`TimeTrackingService`, each a small owner-scoped read layer directly over `@pee/database`'s Prisma client, exposed via `AnalyticsController` at `GET /analytics/summary|velocity|time-tracking`). Unlike every prior phase, Phase 7 had no pre-existing scope in the roadmap — it was defined this session as a read/reporting layer over Phases 2-6's existing tables, deliberately introducing no new domain model (only one supporting composite index). The exit criterion — "Metrics live in `dashboard/METRICS.md`" — is satisfied by rewriting that file to document the live metrics contract these endpoints now produce. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), Phase 6 (AI Integration), and Phase 7 (Analytics) are complete. Phase 8 is implemented: a new Electron app (`apps/desktop`) whose main process imports `packages/local-client`'s `LocalStore`/`SyncClient` (Phase 5's reusable SQLite reference client) completely unmodified — the exit criteria's literal "no rewrite" requirement — for offline-capable Project/Goal/Task CRUD, manual + backgrounded sync. A new React+Vite renderer reuses `apps/web`'s Tailwind conventions (no shared component package exists to reuse instead) and calls the exact same `services/auth`/`services/execution`/`services/ai`/`services/analytics` REST contracts for surfaces outside `@pee/local-client`'s sync registry (execution timers, AI suggestions, analytics — online-only by design). `adr/0007` documents the Electron-over-Tauri decision. No backend endpoint or Postgres schema changed this phase. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -146,8 +146,26 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest new file: `apps/web/app/dashboard/analytics/page.tsx`, 104 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 8 — Desktop
+
+| Deliverable | Status |
+|---|---|
+| `adr/0007` — Electron chosen over Tauri, so `@pee/local-client` runs unmodified in the main process | Done |
+| New `apps/desktop` (`@pee/desktop`) Electron app: `package.json`, `electron.vite.config.ts`, `electron-builder.yml`, Tailwind config mirroring `apps/web`'s | Done |
+| Main process: `local-store-factory.ts` (first-run SQLite bootstrap via `prisma db push`), `auth/auth-session.ts`+`auth-ipc.ts` (login/refresh/logout, `safeStorage` token custody) | Done |
+| IPC: `projects-ipc.ts`/`goals-ipc.ts`/`tasks-ipc.ts` (offline CRUD via `LocalStore`), `sync-ipc.ts` (manual + 30s background sync via unmodified `SyncClient`), `remote-ipc.ts` (execution/AI/analytics online-only passthroughs) | Done |
+| Preload bridge (`electron/preload/index.ts`) — narrow typed `contextBridge` surface, `contextIsolation`/`sandbox` enabled, no raw `ipcRenderer` exposed | Done |
+| Renderer (`src/`): Login, Projects, GoalDetail (+ AI suggestions panel), Analytics, SyncStatusBadge — React + Vite, reusing `apps/web`'s Tailwind conventions | Done |
+| Unit tests (31 in `@pee/desktop` — IPC handlers with mocked `LocalStore`/`SyncClient`/`AuthSession`, plus Login/SyncStatusBadge renderer specs — 239 total across the workspace) | Done |
+| Playwright Electron e2e smoke test (`e2e/desktop.spec.ts`) | Written **and actually run** in the authoring sandbox — passed (no Docker needed, pure SQLite/Electron) |
+| First-run local SQLite bootstrap (`prisma db push`) | Verified end-to-end in the authoring sandbox — produced a real file with all 6 expected tables |
+| CI wiring (`.github/workflows/ci.yml` — Electron launch smoke test under `xvfb-run`, after the Build step) | Done |
+| `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace | Done |
+| Every new/edited file under ~300 lines | Done (largest: `auth-session.ts`, 139 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, 4, 5, 6, and 7 are done. **Phase 8 — Desktop** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, 5, 6, 7, and 8 are done. **Phase 9 — Mobile** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

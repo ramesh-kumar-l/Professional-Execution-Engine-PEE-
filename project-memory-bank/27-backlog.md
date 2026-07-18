@@ -94,9 +94,9 @@ Estimated value: Full traceability (not just status changes) for support/complia
 
 ### In-browser offline support for `apps/web`
 Description: Retrofit the Next.js frontend itself with real client-side storage (e.g. WASM SQLite + IndexedDB persistence) so the web app is genuinely offline-capable, not just the backend protocol.
-Reason: `apps/web` is 100% server-rendered (Server Components + Server Actions, BFF pattern) with zero client-side data fetching today; Phase 5 deliberately built the sync protocol and a reusable SQLite reference client (`packages/local-client`) without rewriting the web app's rendering architecture — that's squarely Phase 8 (Desktop) and Phase 9 (Mobile)'s job, where a native/embedded SQLite binding fits naturally.
-Priority: Low — no current feature needs it; revisit when Phase 8/9 scoping begins.
-Potential dependencies: `packages/local-client` (already built, ready to be consumed).
+Reason: `apps/web` is 100% server-rendered (Server Components + Server Actions, BFF pattern) with zero client-side data fetching today. Phase 5 built the sync protocol and a reusable SQLite reference client (`packages/local-client`); Phase 8 proved it out end-to-end for `apps/desktop`, but `apps/web`'s own rendering architecture remains unretrofitted — a WASM-SQLite-in-the-browser approach is a materially different problem than Electron's native Node.js main process.
+Priority: Low — no current feature needs it; revisit once Phase 9 (Mobile) is scoped, or if a real offline-web request emerges.
+Potential dependencies: `packages/local-client` (already built and now proven by `apps/desktop`).
 Estimated value: True Local-First (Principle 2) compliance for the web product itself.
 
 ### Sync coverage for `ExecutionEvent` and `TaskExecutionSession`
@@ -108,8 +108,8 @@ Estimated value: Full-fidelity offline experience once a real offline UI exists.
 
 ### Encrypt `packages/local-client`'s SQLite file at rest
 Description: Add at-rest encryption (e.g. SQLCipher) to the local SQLite database file.
-Reason: Currently plain-text on disk; acceptable for a backend-only reference client with no shipped end-user surface yet, but a real gap once Phase 8 (Desktop) ships this file to end-user machines, where device loss/theft is a realistic threat model.
-Priority: Medium — revisit before, not during, Phase 8.
+Reason: Currently plain-text on disk. Phase 8 shipped this exact file to `apps/desktop`'s `app.getPath('userData')` — the "before Phase 8" deadline this entry originally named has passed, and the risk is now live, not hypothetical: a lost/stolen device running `apps/desktop` exposes plain-text `Project`/`Goal`/`Task` data.
+Priority: High — revisit before any real end-user distribution of `apps/desktop` (not blocking this session's implementation, which has no distribution yet).
 Potential dependencies: An SQLCipher-compatible Prisma driver or adapter (needs research — not confirmed available today).
 Estimated value: Protects offline data on lost/stolen devices.
 
@@ -182,6 +182,27 @@ Reason: `@pee/analytics` has no persisted rows of its own (pure computed reads o
 Priority: Low — no offline UI exists yet to need it.
 Potential dependencies: A concrete offline-UI feature (same precedent as `ExecutionEvent`/`AIRecommendation`'s sync-coverage backlog entries).
 Estimated value: Full-fidelity offline experience once a real offline UI exists.
+
+### Desktop code signing, auto-update, and cross-platform CI packaging matrix
+Description: Add real code-signing certificates (Windows/macOS), an auto-update mechanism (e.g. `electron-updater` against a release feed), and a CI job that builds/packages `apps/desktop` for win/mac/linux.
+Reason: Phase 8 deliberately shipped an unsigned local-build-only `electron-builder.yml` — signing certs and a packaging matrix are a distribution concern, not a "does the reused API/local-client work" concern, and attempting either without real credentials would produce untested config.
+Priority: Medium — required before any real end-user distribution of `apps/desktop`, not before.
+Potential dependencies: Signing certificates/accounts (Apple Developer ID, a Windows code-signing cert), a release-hosting choice for the update feed.
+Estimated value: Makes `apps/desktop` actually distributable and self-updating, not just runnable from source.
+
+### IPC payload validation for `apps/desktop`
+Description: Add `class-validator`-style validation at the IPC boundary (`projects-ipc.ts`/`goals-ipc.ts`/`tasks-ipc.ts`/etc.), mirroring the `whitelist`/`forbidNonWhitelisted` discipline every HTTP DTO already has.
+Reason: Currently these handlers pass renderer-supplied fields straight to `LocalStore`. The renderer is code this project authored and is sandboxed (`contextIsolation`/`sandbox`), so the risk is lower than a public endpoint, but a compromised renderer dependency is a realistic desktop threat model this doesn't yet defend against.
+Priority: Medium.
+Potential dependencies: None blocking — same `class-validator`/`class-transformer` already used everywhere else in the codebase.
+Estimated value: Closes a real, if narrow, gap in defense-in-depth for the desktop client.
+
+### Extend `@pee/local-client`'s sync registry for offline execution/AI/analytics on desktop
+Description: Cover `TaskExecutionSession`/`ExecutionEvent`/`AIRecommendation` (and a caching strategy for analytics) so `apps/desktop` has a fuller offline story beyond Project/Goal/Task CRUD.
+Reason: Phase 8 deliberately kept desktop's offline scope identical to the existing sync registry rather than widening `@pee/local-client` mid-phase (that widening would itself be a form of "rewrite"). Execution start/complete, AI suggestions, and analytics are online-only passthroughs today — a real UX gap for a genuinely offline desktop session, but not one this phase's exit criteria required closing.
+Priority: Medium — natural next step once `apps/desktop` has real users hitting the online-only gap.
+Potential dependencies: Same cross-device-semantics questions the existing "Sync coverage for `ExecutionEvent` and `TaskExecutionSession`" backlog entry already raises.
+Estimated value: A desktop session that works fully offline, not just for planning data.
 
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.

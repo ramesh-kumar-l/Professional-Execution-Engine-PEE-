@@ -220,3 +220,29 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Analytics is a read layer over data Phases 2-6 already model — inventing a new domain entity to represent "a metric" would be modeling a view as if it were data. The one schema change reflects the velocity endpoint's actual query shape (scan by owner, filter by date range), which the existing single-column `[ownerId]` index doesn't serve as well at scale.
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [10-database-design.md](10-database-design.md), [11-api-contract.md](11-api-contract.md), [12-security.md](12-security.md), [16-roadmap.md](16-roadmap.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md). **Phase:** 7.
+
+## 2026-07-18 — Phase 8 implementation-level decisions
+
+**Decision (Electron over Tauri, so `@pee/local-client` runs unmodified):** `apps/desktop`'s main process is Node.js (Electron), directly importing `LocalStore`/`SyncClient` with zero adaptation.
+**Alternatives considered:** Tauri (Rust backend + webview), per-platform native wrappers embedding a webview around `apps/web`.
+**Reason:** Tauri's Rust backend cannot run a TypeScript/Prisma library without reimplementing it — exactly the rewrite the exit criteria forbid. Native wrappers around `apps/web` offer no offline capability and no path to consuming `@pee/local-client` at all. Full rationale: [adr/0007](../adr/0007-desktop-shell-electron.md).
+
+**Decision ("no rewrite" is satisfied at the API/library level, not the presentation layer):** The renderer (`apps/desktop/src`) is a new React+Vite app, not a literal reuse of `apps/web`'s Server Components.
+**Alternatives considered:** Load `apps/web`'s pages inside a `BrowserWindow` pointed at a running Next.js server.
+**Reason:** Next.js Server Components/Server Actions are architecturally incompatible with an offline-first client that needs synchronous local IPC reads — there is no meaningful way to "reuse" server-rendered pages for a client that must work without a server connection. The exit criteria's literal targets — the backend API contract and `@pee/local-client` — are reused unmodified; the renderer reuses `apps/web`'s Tailwind conventions instead of its rendering architecture, since no shared design-system package exists to reuse in either case.
+
+**Decision (desktop's offline scope matches `@pee/local-client`'s existing sync registry exactly — Project/Goal/Task — not widened):** Execution sessions, AI suggestions, and analytics are online-only IPC passthroughs to the same REST endpoints `apps/web` calls, not synced locally.
+**Alternatives considered:** Extend `@pee/local-client`'s sync registry to cover `TaskExecutionSession`/`AIRecommendation`/analytics so the desktop app has a fuller offline story.
+**Reason:** Phase 5 deliberately scoped the sync registry to three bidirectional entities; widening it now, mid-Phase-8, would itself be a form of rewriting `@pee/local-client` rather than reusing it. Tracked as a genuine desktop UX limitation in [27-backlog.md](27-backlog.md), not silently accepted as sufficient forever.
+
+**Decision (Electron main process is the new token-custody location, same BFF discipline as `apps/web`):** `AuthSession` holds the access token in memory and the refresh token encrypted via `safeStorage`; the renderer only ever receives a `UserProfile`.
+**Reason:** Mirrors the existing "server holds the token" pattern exactly — the desktop app's main process is architecturally the same trust boundary as `apps/web`'s Next.js server, just relocated to the user's own machine instead of a remote server.
+
+**Decision (first-run local SQLite bootstrap reuses `@pee/local-client`'s own test-fixture pattern — `prisma db push` via `execFileSync`, not a bundled pre-migrated template file):** `local-store-factory.ts` mirrors `packages/local-client/test/test-db.ts` exactly.
+**Alternatives considered:** Ship a pre-built, pre-migrated SQLite file as a packaged app resource and copy it into place on first launch.
+**Reason:** Reuses an already-proven pattern rather than building new packaging machinery; genuinely verified end-to-end in this session (real SQLite file, all 6 tables, in the authoring sandbox — no Docker needed). The template-file approach is a legitimate production-packaging improvement, deferred to backlog rather than built speculatively before any packaging/distribution work exists.
+
+**Decision (packaging/signing/auto-update explicitly out of scope this phase):** `electron-builder.yml` targets an unsigned local build only; no CI packaging step, no signing certs, no auto-update.
+**Reason:** Distribution infrastructure (code signing, update servers, a cross-platform CI matrix) is a separate concern from "does the app work, and does it satisfy the reuse constraints" — attempting it without real signing credentials would produce untested, unusable packaging config. Tracked in [27-backlog.md](27-backlog.md).
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [12-security.md](12-security.md), [16-roadmap.md](16-roadmap.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md), [adr/0007](../adr/0007-desktop-shell-electron.md). **Phase:** 8.

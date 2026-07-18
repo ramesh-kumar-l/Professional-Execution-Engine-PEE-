@@ -13,6 +13,6 @@ Full detail: `project-memory-bank/16-roadmap.md`.
 | 5 | Memory Engine | Complete — 2026-07-18 (`services/sync`, `packages/local-client`, first real SQLite↔Postgres sync protocol) |
 | 6 | AI Integration | Complete — 2026-07-18 (`services/ai`, goal → task-breakdown suggestions, `AIProvider` w/ Anthropic + OpenAI) |
 | 7 | Analytics | Complete — 2026-07-18 (`services/analytics`, `apps/web` `/dashboard/analytics`, `dashboard/METRICS.md` live metrics contract) |
-| 8 | Desktop | Not started |
+| 8 | Desktop | Complete — 2026-07-18 (`apps/desktop` Electron app, `packages/local-client` consumed unmodified, `adr/0007`) |
 | 9 | Mobile | Not started |
 | 10 | Enterprise | Not started |

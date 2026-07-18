@@ -13,7 +13,22 @@
       "Bash(git add *)",
       "Bash(echo \"exit: $?\")",
       "Bash(npx jest *)",
-      "Bash(JWT_ACCESS_SECRET=test-secret JWT_REFRESH_SECRET=test-secret DATABASE_URL=\"postgresql://user:pass@localhost:5432/pee\" npx jest --config jest-e2e.config.js)"
+      "Bash(JWT_ACCESS_SECRET=test-secret JWT_REFRESH_SECRET=test-secret DATABASE_URL=\"postgresql://user:pass@localhost:5432/pee\" npx jest --config jest-e2e.config.js)",
+      "Bash(xargs grep -l -i \"electron\\\\|tauri\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.devDependencies||{}\\)\\)\")",
+      "Bash(timeout 30 npx playwright install --with-deps chromium)",
+      "Bash(timeout 60 npx playwright test)",
+      "Bash(timeout 15 node_modules/.bin/electron.cmd out/main/index.js)",
+      "Bash(timeout 15 ../../node_modules/.bin/electron.cmd out/main/index.js --no-sandbox)",
+      "Bash(env -u ELECTRON_RUN_AS_NODE timeout 15 ../../node_modules/.bin/electron.cmd out/main/index.js --no-sandbox)",
+      "Read(//c/Users/Ramesh/AppData/Roaming/**)",
+      "Bash(rm -rf \"/c/Users/Ramesh/AppData/Roaming/Electron\"; echo \"cleaned up test artifact userData folder\")",
+      "Bash(env -u ELECTRON_RUN_AS_NODE timeout 60 npx playwright test)",
+      "Read(//c/Users/Ramesh/AppData/Roaming/pee-desktop/**)",
+      "Bash(rm -rf \"/c/Users/Ramesh/AppData/Roaming/pee-desktop\")"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Ramesh\\AppData\\Roaming\\Electron"
     ]
   }
 }

@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 7 (Analytics) written and implemented, 2026-07-18.**
+**Status: Phase 8 (Desktop) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -178,6 +178,32 @@
   - [x] Every new/edited file stays under ~300 lines (largest new file: `apps/web/app/dashboard/analytics/page.tsx`, 104 lines)
   - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-6)
   - [ ] Materialized analytics rollups, charting/visualization upgrade, analytics sync coverage — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 8 — Desktop
+
+- **Objective:** Ship a desktop client that reuses the same backend API, the same visual conventions, and `packages/local-client` (Phase 5's reusable SQLite reference client) with no rewrite — the exit criterion this phase is literally scoped against.
+- **Current state:** `@pee/local-client` existed but was genuinely unconsumed by any shipped product surface; no Electron/Tauri tooling existed anywhere in the repo.
+- **Desired state:** A new `apps/desktop` Electron app whose main process runs `@pee/local-client`'s `LocalStore`/`SyncClient` unmodified for offline-capable Project/Goal/Task CRUD + sync, and whose renderer reuses the same REST contracts `apps/web` already calls (`services/auth`/`services/execution`/`services/ai`/`services/analytics`) for the surfaces outside `@pee/local-client`'s sync registry.
+- **Required APIs:** None new — reuses `POST /auth/login|refresh|logout`, `GET /auth/me`, `POST /tasks/:taskId/execution/start|complete`, `POST /goals/:goalId/ai/task-suggestions`, `POST /ai/recommendations/:id/accept|dismiss`, `GET /analytics/summary|velocity|time-tracking`, and `POST /sync/pull|push` (the latter via `@pee/local-client`'s `SyncClient`, not a direct call).
+- **Database impact:** None — no Postgres schema change; `@pee/local-client`'s existing SQLite schema is consumed as-is, with no new tables.
+- **UI impact:** A new Electron renderer (`apps/desktop/src`) — Login, Projects (list/create), Goal detail (goals+tasks for a project, Start/Complete controls, AI suggestions panel), Analytics (read-only) — reusing `apps/web`'s Tailwind baseline and utility-class conventions, not its Server Components (architecturally incompatible with an offline-first client).
+- **AI impact:** None new — the existing goal → task-breakdown feature (Phase 6) is exposed via a passthrough IPC handler, online-only.
+- **Testing strategy:** Unit tests for every IPC handler module (mocked `LocalStore`/`SyncClient`/`AuthSession`) and for the Login/SyncStatusBadge renderer components (Vitest+RTL); a Playwright Electron e2e smoke test that launches the *actual built app* and asserts the login screen renders — genuinely executed in the authoring sandbox (no Docker needed, since it's pure SQLite/Electron), unlike every prior phase's Docker-dependent e2e.
+- **Migration requirements:** None — no Postgres schema change. `@pee/local-client`'s SQLite schema is unchanged; its existing first-run `prisma db push` bootstrap (mirrored in `local-store-factory.ts`) was verified end-to-end in this sandbox, producing a real SQLite file with all 6 expected tables.
+- **Observability impact:** None new.
+- **Security considerations:** Electron hardening baseline (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, narrow typed preload bridge); refresh token persisted via OS-keychain-backed `safeStorage` (plaintext fallback if unavailable, documented); local SQLite file remains unencrypted at rest — the exact gap Phase 5/12-security.md flagged as "revisit before Phase 8 ships this file to end-user machines," now genuinely live rather than hypothetical. See [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `12-security.md`, `16-roadmap.md`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, `adr/0007-desktop-shell-electron.md`.
+- **Acceptance criteria:**
+  - [x] `apps/desktop` Electron app built; main process imports `@pee/local-client`'s `LocalStore`/`SyncClient` with zero modification
+  - [x] Offline-capable Project/Goal/Task CRUD via IPC, owner-scoped, backed by a real local SQLite file (verified: bootstrap + all 6 tables created in this sandbox)
+  - [x] Manual + backgrounded (30s interval) sync via the unmodified `SyncClient`, with refresh-on-401 retry
+  - [x] Execution start/complete, AI suggestions, and analytics exposed as online-only passthroughs to the existing REST contracts
+  - [x] Unit tests passing (31 in `@pee/desktop` — 239 total across the workspace)
+  - [x] Playwright Electron e2e smoke test written **and actually run** in this sandbox (launches the built app, confirms the login screen renders) — the first e2e in this project not blocked by the Docker gap
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest: `electron/main/auth/auth-session.ts`, 139 lines)
+  - [ ] Code signing, auto-update, cross-platform CI packaging matrix — explicitly deferred, see [27-backlog.md](27-backlog.md)
+  - [ ] Local SQLite file-at-rest encryption — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

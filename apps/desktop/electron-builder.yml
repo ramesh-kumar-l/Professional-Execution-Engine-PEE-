@@ -1,0 +1,20 @@
+appId: com.pee.desktop
+productName: PEE Desktop
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+# Prisma's query engine binary must stay on disk (outside the asar archive) to be spawnable at
+# runtime — a documented Electron+Prisma packaging requirement, not specific to this app.
+asarUnpack:
+  - '**/node_modules/@prisma/**'
+  - '**/node_modules/.prisma/**'
+win:
+  target: nsis
+mac:
+  target: dmg
+  category: public.app-category.productivity
+linux:
+  target: AppImage
+  category: Office
