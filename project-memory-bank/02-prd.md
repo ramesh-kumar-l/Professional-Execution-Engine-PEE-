@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 8 (Desktop) written and implemented, 2026-07-18.**
+**Status: Phase 9 (Mobile) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -204,6 +204,31 @@
   - [x] Every new/edited file stays under ~300 lines (largest: `electron/main/auth/auth-session.ts`, 139 lines)
   - [ ] Code signing, auto-update, cross-platform CI packaging matrix — explicitly deferred, see [27-backlog.md](27-backlog.md)
   - [ ] Local SQLite file-at-rest encryption — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 9 — Mobile
+
+- **Objective:** Ship a mobile client with the same reuse constraint as Desktop — a mobile shell whose runtime can host `@pee/local-client` *or an equivalent* without a rewrite — while remaining an honest port where literal reuse isn't technically possible.
+- **Current state:** No mobile tooling existed anywhere in the repo. Confirmed by reading the code that `@pee/local-client`'s `LocalStore` (Prisma-based) cannot run unmodified on React Native — Prisma's query engine has no Android/iOS binary target, and Hermes/JSC is not a Node.js runtime.
+- **Desired state:** A new `apps/mobile` Expo/React Native app with a `MobileStore` (expo-sqlite-backed, same table shapes and method surface as `LocalStore`) and a `MobileSyncClient` (a line-for-line port of `SyncClient`'s pull/push algorithm) providing offline-capable Project/Goal/Task CRUD + sync, with `@pee/types` and the `services/sync` REST contract reused completely unmodified. Execution/AI/analytics stay online-only, matching Desktop's scope boundary.
+- **Required APIs:** None new — reuses `POST /auth/login|refresh|logout`, `GET /auth/me`, `POST /tasks/:taskId/execution/start|complete`, `POST /goals/:goalId/ai/task-suggestions`, `POST /ai/recommendations/:id/accept|dismiss`, `GET /analytics/summary|velocity|time-tracking`, and `POST /sync/pull|push`.
+- **Database impact:** None — no Postgres schema change. `MobileStore`'s SQLite tables mirror `packages/local-client/prisma/schema.prisma` field-for-field but are a separate, hand-written SQL schema (`apps/mobile/src/db/schema.ts`), not a shared Prisma client.
+- **UI impact:** A new React Native renderer (`apps/mobile/src`) — Login, Projects (list/create), Goal detail (goals+tasks, Start/Complete controls, AI suggestions panel), Analytics (read-only) — reusing `apps/web`'s Tailwind conventions via NativeWind.
+- **AI impact:** None new — the existing goal → task-breakdown feature (Phase 6) is exposed via `RemoteClient`, online-only.
+- **Testing strategy:** Jest + `@testing-library/react-native` unit tests for `MobileStore`/`MobileSyncClient` (against a real embedded SQLite via Node's built-in `node:sqlite`, not a hand-rolled mock), `MobileAuthSession`, and `LoginScreen` — 17 tests, genuinely run and passing. A Detox e2e spec was written and CI-wired but — unlike Desktop's Playwright/Electron e2e — could not be run in this sandbox (no Android emulator/iOS Simulator available); honestly documented as unrun, not claimed as verified.
+- **Migration requirements:** None — no Postgres schema change. `MobileStore`'s schema bootstrap runs idempotent `CREATE TABLE IF NOT EXISTS` statements on every launch, needing no migration history.
+- **Observability impact:** None new.
+- **Security considerations:** `expo-secure-store` (iOS Keychain/Android Keystore-backed) for refresh-token custody, mirroring Desktop's `safeStorage` pattern; `ownerId` always derived from the authenticated session, never from a caller-supplied value; local SQLite file remains unencrypted at rest — same carried-forward gap as Desktop's local file, now shipping to a second client. See [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `12-security.md`, `16-roadmap.md`, `20-known-issues.md`, `21-decision-log.md`, `27-backlog.md`, `adr/0008-mobile-local-storage.md`.
+- **Acceptance criteria:**
+  - [x] `apps/mobile` Expo/React Native app built; `MobileStore`/`MobileSyncClient` port `LocalStore`/`SyncClient`'s behavior faithfully onto expo-sqlite (documented rationale in `adr/0008` for why literal reuse isn't possible on this runtime)
+  - [x] Offline-capable Project/Goal/Task CRUD, owner-scoped, backed by a real on-device SQLite file
+  - [x] Manual + backgrounded (30s interval) sync via the ported algorithm, with refresh-on-401 retry
+  - [x] Execution start/complete, AI suggestions, and analytics exposed as online-only passthroughs to the existing REST contracts
+  - [x] Unit tests passing (17 in `@pee/mobile` — 256 total across the workspace)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest: `screens/GoalDetailScreen.tsx`, 138 lines)
+  - [ ] Detox e2e spec written and CI-wired but **not run** in this sandbox — no Android emulator/iOS Simulator available; honestly documented, not claimed as verified
+  - [ ] Code signing, EAS cloud build, local SQLite file-at-rest encryption — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

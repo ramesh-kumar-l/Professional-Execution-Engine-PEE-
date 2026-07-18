@@ -96,6 +96,9 @@ jobs:
       - name: Desktop app e2e tests (Electron launch smoke test)
         run: xvfb-run --auto-servernum npm run test:e2e -w @pee/desktop
 
+      - name: Mobile app unit tests
+        run: npm run test -w @pee/mobile
+
       - name: Start API server
         run: |
           nohup npm run start -w @pee/api > api.log 2>&1 &

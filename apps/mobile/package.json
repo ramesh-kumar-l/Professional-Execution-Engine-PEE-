@@ -1,0 +1,50 @@
+{
+  "name": "@pee/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "build": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo 'no lint configured for @pee/mobile yet' ",
+    "test": "jest",
+    "test:e2e": "echo '@pee/mobile e2e (Detox) requires an Android emulator/iOS simulator not available in this sandbox; see 20-known-issues.md' "
+  },
+  "dependencies": {
+    "@pee/types": "*",
+    "@react-navigation/native": "^7.3.11",
+    "@react-navigation/native-stack": "^7.18.3",
+    "expo": "^57.0.7",
+    "expo-crypto": "^57.0.1",
+    "expo-modules-core": "57.0.6",
+    "expo-secure-store": "^57.0.1",
+    "expo-sqlite": "^57.0.1",
+    "expo-status-bar": "^3.0.0",
+    "nativewind": "^4.2.6",
+    "react": "^19.2.3",
+    "react-native": "^0.86.0",
+    "react-native-css-interop": "^0.2.6",
+    "react-native-gesture-handler": "^3.1.0",
+    "react-native-reanimated": "^4.5.2",
+    "react-native-safe-area-context": "^5.8.0",
+    "react-native-screens": "^4.26.2",
+    "react-native-worklets": "^0.10.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@react-native/jest-preset": "^0.86.0",
+    "@testing-library/react-native": "^14.0.1",
+    "@types/jest": "^29.5.12",
+    "@types/react": "^19.1.1",
+    "babel-preset-expo": "^57.0.3",
+    "detox": "^20.51.4",
+    "jest": "^29.7.0",
+    "jest-expo": "^57.0.2",
+    "react-test-renderer": "^19.2.0",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.5.4"
+  }
+}

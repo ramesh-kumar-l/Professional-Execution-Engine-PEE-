@@ -25,7 +25,17 @@
       "Bash(rm -rf \"/c/Users/Ramesh/AppData/Roaming/Electron\"; echo \"cleaned up test artifact userData folder\")",
       "Bash(env -u ELECTRON_RUN_AS_NODE timeout 60 npx playwright test)",
       "Read(//c/Users/Ramesh/AppData/Roaming/pee-desktop/**)",
-      "Bash(rm -rf \"/c/Users/Ramesh/AppData/Roaming/pee-desktop\")"
+      "Bash(rm -rf \"/c/Users/Ramesh/AppData/Roaming/pee-desktop\")",
+      "Bash(npm view *)",
+      "Bash(node -e \"const {DatabaseSync} = require\\('node:sqlite'\\); const db = new DatabaseSync\\(':memory:'\\); db.exec\\('CREATE TABLE t \\(id TEXT\\)'\\); db.prepare\\('INSERT INTO t \\(id\\) VALUES \\(?\\)'\\).run\\('x'\\); console.log\\(db.prepare\\('SELECT * FROM t'\\).all\\(\\)\\);\")",
+      "Bash(npm approve-scripts *)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./node_modules/nativewind/package.json'\\).exports, null, 2\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/nativewind/package.json'\\).dependencies\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/react-native/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/nativewind/node_modules/react-native/package.json'\\).version\\)\")",
+      "Bash(node -e \"console.log\\(require.resolve\\('react-native/package.json'\\)\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./apps/mobile/node_modules/expo/package.json'\\).dependencies['expo-modules-core']\\)\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@testing-library/react-native/package.json'\\).version\\)\")"
     ],
     "additionalDirectories": [
       "C:\\Users\\Ramesh\\AppData\\Roaming\\Electron"
