@@ -94,9 +94,9 @@ Estimated value: Full traceability (not just status changes) for support/complia
 
 ### In-browser offline support for `apps/web`
 Description: Retrofit the Next.js frontend itself with real client-side storage (e.g. WASM SQLite + IndexedDB persistence) so the web app is genuinely offline-capable, not just the backend protocol.
-Reason: `apps/web` is 100% server-rendered (Server Components + Server Actions, BFF pattern) with zero client-side data fetching today. Phase 5 built the sync protocol and a reusable SQLite reference client (`packages/local-client`); Phase 8 proved it out end-to-end for `apps/desktop`, but `apps/web`'s own rendering architecture remains unretrofitted — a WASM-SQLite-in-the-browser approach is a materially different problem than Electron's native Node.js main process.
-Priority: Low — no current feature needs it; revisit once Phase 9 (Mobile) is scoped, or if a real offline-web request emerges.
-Potential dependencies: `packages/local-client` (already built and now proven by `apps/desktop`).
+Reason: `apps/web` is 100% server-rendered (Server Components + Server Actions, BFF pattern) with zero client-side data fetching today. Phase 5 built the sync protocol and a reusable SQLite reference client (`packages/local-client`); Phase 8 proved it out end-to-end for `apps/desktop`, Phase 9 ported it for `apps/mobile`, but `apps/web`'s own rendering architecture remains unretrofitted — a WASM-SQLite-in-the-browser approach is a materially different problem than either native client's storage engine.
+Priority: Low — no current feature needs it; revisit if a real offline-web request emerges.
+Potential dependencies: `packages/local-client` (already built and proven by `apps/desktop`; ported for `apps/mobile`).
 Estimated value: True Local-First (Principle 2) compliance for the web product itself.
 
 ### Sync coverage for `ExecutionEvent` and `TaskExecutionSession`
@@ -106,12 +106,12 @@ Priority: Low — no offline UI exists yet to consume either.
 Potential dependencies: A concrete offline-UI feature that needs the activity timeline or active-session view while disconnected.
 Estimated value: Full-fidelity offline experience once a real offline UI exists.
 
-### Encrypt `packages/local-client`'s SQLite file at rest
-Description: Add at-rest encryption (e.g. SQLCipher) to the local SQLite database file.
-Reason: Currently plain-text on disk. Phase 8 shipped this exact file to `apps/desktop`'s `app.getPath('userData')` — the "before Phase 8" deadline this entry originally named has passed, and the risk is now live, not hypothetical: a lost/stolen device running `apps/desktop` exposes plain-text `Project`/`Goal`/`Task` data.
-Priority: High — revisit before any real end-user distribution of `apps/desktop` (not blocking this session's implementation, which has no distribution yet).
-Potential dependencies: An SQLCipher-compatible Prisma driver or adapter (needs research — not confirmed available today).
-Estimated value: Protects offline data on lost/stolen devices.
+### Encrypt local SQLite files at rest (`apps/desktop` and `apps/mobile`)
+Description: Add at-rest encryption (e.g. SQLCipher for desktop's Prisma-backed file; `expo-sqlite`'s own SQLCipher support, or field-level encryption, for mobile's) to both clients' local SQLite database files.
+Reason: Both are currently plain-text on disk. Phase 8 shipped `apps/desktop`'s file to `app.getPath('userData')`; Phase 9 shipped a second, structurally different file for `apps/mobile` via `expo-sqlite`. The risk is now live on two device classes — a lost/stolen phone is arguably a more common real-world scenario than a lost desktop.
+Priority: High — revisit before any real end-user distribution of either client (not blocking this session's implementation, which has no distribution yet).
+Potential dependencies: An SQLCipher-compatible Prisma driver/adapter for desktop (needs research); `expo-sqlite`'s encryption story for mobile (needs research — the two clients will likely need different solutions since they're different storage engines).
+Estimated value: Protects offline data on lost/stolen devices, for both client types.
 
 ### Multi-device conflict resolution beyond simple last-write-wins
 Description: Handle more than two concurrent writers to the same row more richly than "whoever's wall clock is newer wins" (e.g. field-level merge, user-facing conflict resolution UI).
@@ -197,12 +197,33 @@ Priority: Medium.
 Potential dependencies: None blocking — same `class-validator`/`class-transformer` already used everywhere else in the codebase.
 Estimated value: Closes a real, if narrow, gap in defense-in-depth for the desktop client.
 
-### Extend `@pee/local-client`'s sync registry for offline execution/AI/analytics on desktop
-Description: Cover `TaskExecutionSession`/`ExecutionEvent`/`AIRecommendation` (and a caching strategy for analytics) so `apps/desktop` has a fuller offline story beyond Project/Goal/Task CRUD.
-Reason: Phase 8 deliberately kept desktop's offline scope identical to the existing sync registry rather than widening `@pee/local-client` mid-phase (that widening would itself be a form of "rewrite"). Execution start/complete, AI suggestions, and analytics are online-only passthroughs today — a real UX gap for a genuinely offline desktop session, but not one this phase's exit criteria required closing.
-Priority: Medium — natural next step once `apps/desktop` has real users hitting the online-only gap.
-Potential dependencies: Same cross-device-semantics questions the existing "Sync coverage for `ExecutionEvent` and `TaskExecutionSession`" backlog entry already raises.
-Estimated value: A desktop session that works fully offline, not just for planning data.
+### Extend the sync scope for offline execution/AI/analytics on desktop and mobile
+Description: Cover `TaskExecutionSession`/`ExecutionEvent`/`AIRecommendation` (and a caching strategy for analytics) so `apps/desktop` and `apps/mobile` both have a fuller offline story beyond Project/Goal/Task CRUD.
+Reason: Both Phase 8 and Phase 9 deliberately kept their offline scope identical to the Phase 5 sync registry's three bidirectional entities rather than widening it (that widening would itself be a form of "rewrite" of the reused/ported protocol). Execution start/complete, AI suggestions, and analytics are online-only passthroughs on both clients today — a real UX gap for a genuinely offline session on either device, but not one either phase's exit criteria required closing.
+Priority: Medium — natural next step once either client has real users hitting the online-only gap.
+Potential dependencies: Same cross-device-semantics questions the existing "Sync coverage for `ExecutionEvent` and `TaskExecutionSession`" backlog entry already raises; would need to be designed once and then applied to both `packages/local-client` and `apps/mobile`'s ported equivalent.
+Estimated value: A desktop or mobile session that works fully offline, not just for planning data.
+
+### Run `apps/mobile`'s Detox e2e spec on a real device/CI runner
+Description: Execute `apps/mobile/e2e/mobile.e2e.ts` against a real Android emulator or iOS Simulator (locally, or via a CI runner with one available) to confirm the app actually launches and renders as expected — the mobile equivalent of what `apps/desktop`'s Playwright/Electron e2e already achieved.
+Reason: This authoring sandbox has no Android SDK/emulator or macOS+Xcode/Simulator available, and unlike Electron there is no headless-launch workaround for Detox. The spec and `.detoxrc.js` config are written and ready; only the runtime environment is missing.
+Priority: Medium — genuinely verifies the one thing Jest unit tests can't (the real app actually launching on a real or emulated device).
+Potential dependencies: An Android emulator/AVD or iOS Simulator, either locally or in a CI runner (e.g. GitHub Actions' macOS runners for iOS, or an Android emulator action for Android).
+Estimated value: Closes this project's one remaining "written but never run" e2e gap that isn't blocked on Docker/Postgres.
+
+### EAS cloud build and code signing for `apps/mobile`
+Description: Add real EAS Build credentials (Apple/Google signing) and a production `eas.json` profile so `apps/mobile` can be built into an installable, signed app rather than only run via `expo start`/local dev builds.
+Reason: Phase 9 deliberately scoped `eas.json` to dev/preview profiles only — signing credentials and a production build pipeline are a distribution concern, not a "does the ported protocol work" concern, mirroring Phase 8's identical decision for `electron-builder`.
+Priority: Medium — required before any real end-user distribution of `apps/mobile`, not before.
+Potential dependencies: An Expo/EAS account, Apple Developer Program membership, Google Play Console access.
+Estimated value: Makes `apps/mobile` actually installable on a real device outside of Expo Go/dev builds.
+
+### Payload validation for `apps/mobile`'s direct `MobileStore` calls
+Description: Add `class-validator`-style validation before screens call `MobileStore.createProject`/`createGoal`/`createTask` etc., mirroring the `whitelist`/`forbidNonWhitelisted` discipline every HTTP DTO already has, and the same gap already tracked for `apps/desktop`'s IPC boundary.
+Reason: Currently screens pass form input straight to `MobileStore`. The code is authored by this project (not arbitrary internet input), so the risk is lower than a public endpoint, but a compromised dependency in the RN bundle is a realistic threat model this doesn't yet defend against.
+Priority: Medium — same priority and reasoning as the existing `apps/desktop` IPC-validation entry.
+Potential dependencies: None blocking — same `class-validator`/`class-transformer` already used everywhere else in the codebase.
+Estimated value: Closes a real, if narrow, gap in defense-in-depth for the mobile client.
 
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.

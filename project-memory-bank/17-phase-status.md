@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 8 — Desktop. Complete (2026-07-18).**
+**Phase 9 — Mobile. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), Phase 6 (AI Integration), and Phase 7 (Analytics) are complete. Phase 8 is implemented: a new Electron app (`apps/desktop`) whose main process imports `packages/local-client`'s `LocalStore`/`SyncClient` (Phase 5's reusable SQLite reference client) completely unmodified — the exit criteria's literal "no rewrite" requirement — for offline-capable Project/Goal/Task CRUD, manual + backgrounded sync. A new React+Vite renderer reuses `apps/web`'s Tailwind conventions (no shared component package exists to reuse instead) and calls the exact same `services/auth`/`services/execution`/`services/ai`/`services/analytics` REST contracts for surfaces outside `@pee/local-client`'s sync registry (execution timers, AI suggestions, analytics — online-only by design). `adr/0007` documents the Electron-over-Tauri decision. No backend endpoint or Postgres schema changed this phase. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), Phase 4 (Execution Engine), Phase 5 (Memory Engine), Phase 6 (AI Integration), Phase 7 (Analytics), and Phase 8 (Desktop) are complete. Phase 9 is implemented: a new Expo/React Native app (`apps/mobile`) with a `MobileStore` (expo-sqlite-backed, `LocalStore`'s exact method surface) and a `MobileSyncClient` (a line-for-line port of `SyncClient`'s pull/push/conflict-resolution algorithm) — the exit criteria's "or an equivalent" clause, since Prisma's query engine has no Android/iOS binary target and literal reuse of `packages/local-client` is technically impossible on this runtime (`adr/0008`). `@pee/types` and the `services/sync` REST contract are reused completely unmodified. A NativeWind renderer reuses `apps/web`'s Tailwind conventions and calls the exact same REST contracts as `apps/desktop` for surfaces outside the sync scope (execution timers, AI suggestions, analytics — online-only by design). No backend endpoint or Postgres schema changed this phase. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -164,8 +164,25 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest: `auth-session.ts`, 139 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 9 — Mobile
+
+| Deliverable | Status |
+|---|---|
+| `adr/0008` — a ported `expo-sqlite` storage engine chosen over Prisma-in-React-Native (technically impossible — no Android/iOS query-engine binary target) or `nodejs-mobile-react-native` (still no Prisma mobile target, more fragile) | Done |
+| New `apps/mobile` (`@pee/mobile`) Expo/React Native app: `package.json`, `app.json`, `eas.json`, `babel.config.js`/`metro.config.js`, NativeWind Tailwind config mirroring `apps/web`'s | Done |
+| `db/`: `schema.ts` (SQL mirroring `packages/local-client/prisma/schema.prisma`), `connection.ts` (expo-sqlite bootstrap), `mobile-store.ts` facade + `projects-repo.ts`/`goals-repo.ts`/`tasks-repo.ts`/`outbox-repo.ts` (same public surface as `LocalStore`), `mobile-sync-client.ts` (ported `SyncClient` algorithm) | Done |
+| `auth/mobile-auth-session.ts` (mirrors `apps/desktop`'s `AuthSession`; `expo-secure-store` token custody) + `auth-context.tsx` | Done |
+| `api/remote-client.ts` (execution/AI/analytics online-only passthroughs), `sync/background-sync.ts` + `sync-context.tsx` (manual + 30s background sync) | Done |
+| Renderer (`navigation/`, `screens/`, `components/`): Login, Projects, GoalDetail (+ AI suggestions panel), Analytics, SyncStatusBadge — React Native + NativeWind | Done |
+| Unit tests (17 in `@pee/mobile` — `MobileStore`/`MobileSyncClient` against a real embedded SQLite via `node:sqlite`, `MobileAuthSession`, `LoginScreen` — 256 total across the workspace) | Done |
+| Detox e2e spec + config (`e2e/mobile.e2e.ts`, `.detoxrc.js`) | Written, not run — no Android emulator/iOS Simulator available in this sandbox; honestly documented, unlike Phase 8's Electron e2e which did run |
+| CI wiring (`.github/workflows/ci.yml` — "Mobile app unit tests" step; no Detox CI step, since it can't run here) | Done |
+| `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace | Done |
+| Every new/edited file under ~300 lines | Done (largest: `screens/GoalDetailScreen.tsx`, 138 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, 4, 5, 6, 7, and 8 are done. **Phase 9 — Mobile** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, and 9 are done. **Phase 10 — Enterprise** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once, and get a real Android emulator/iOS Simulator running to execute `apps/mobile`'s Detox e2e spec — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

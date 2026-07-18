@@ -246,3 +246,29 @@ Source of truth for process: `SYSTEM_PROMPT.md` §85 (`System_Prompt/Part5.md`).
 **Reason:** Distribution infrastructure (code signing, update servers, a cross-platform CI matrix) is a separate concern from "does the app work, and does it satisfy the reuse constraints" — attempting it without real signing credentials would produce untested, unusable packaging config. Tracked in [27-backlog.md](27-backlog.md).
 
 **Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [12-security.md](12-security.md), [16-roadmap.md](16-roadmap.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md), [adr/0007](../adr/0007-desktop-shell-electron.md). **Phase:** 8.
+
+## 2026-07-18 — Phase 9 implementation-level decisions
+
+**Decision (Expo/React Native, with a ported storage engine instead of Prisma-in-RN):** `apps/mobile` is Expo-managed React Native; its local storage is a new `MobileStore` (expo-sqlite) with the exact method surface of `LocalStore`, and a `MobileSyncClient` that is a line-for-line port of `SyncClient`'s algorithm.
+**Alternatives considered:** `nodejs-mobile-react-native` (embed a real Node runtime so `@pee/local-client` could theoretically run); Capacitor (webview wrapper around `apps/web` + a community SQLite plugin).
+**Reason:** Confirmed by reading the code that Prisma's query engine has no published Android/iOS binary target — even a real embedded Node runtime doesn't solve that, since the missing piece is the *engine binary*, not the JS runtime. `nodejs-mobile-react-native` would trade one rewrite for a more fragile, exotic one. Capacitor has the same "wrapping server-rendered pages has no path to local synchronous reads" problem `adr/0007` already rejected for Desktop, plus a less mature SQLite story. Full rationale: [adr/0008](../adr/0008-mobile-local-storage.md).
+
+**Decision ("no rewrite" satisfied at the protocol/type level, not the storage-engine level):** `@pee/types`'s sync DTOs and the `services/sync` REST contract are imported/called completely unmodified; only the storage engine (Prisma → expo-sqlite) and the algorithm's *host* (a port, not an import) differ from `apps/desktop`.
+**Alternatives considered:** Treat "or an equivalent" as license to design a materially different sync approach for mobile (e.g. a simpler last-pull-wins model without the outbox pattern).
+**Reason:** The exit criteria's actual constraint is behavioral fidelity to the proven protocol, not a specific import statement — porting the exact algorithm (cursor bookkeeping, outbox collapsing, conflict resolution) preserves everything that makes the protocol correct, while only substituting the one piece that is fundamentally platform-bound.
+
+**Decision (mobile's offline scope matches Desktop's exactly — Project/Goal/Task — not widened):** Execution sessions, AI suggestions, and analytics are online-only passthroughs (`api/remote-client.ts`), identical scope boundary to `apps/desktop`.
+**Reason:** Same reasoning as Phase 8's equivalent decision — widening the sync scope mid-phase would itself be a form of scope creep beyond "reuse the protocol," not a reuse of it. Tracked in [27-backlog.md](27-backlog.md).
+
+**Decision (`MobileStore`'s repos expose explicit `getById`/`listByX` methods, fixing a coupling wart rather than reproducing it):** `MobileSyncClient.buildPushChange` calls `store.projects.getById(...)` etc., rather than reaching into a Prisma-shaped internal the way `@pee/local-client`'s own `SyncClient.buildPushChange` reaches into `store.db.localProject.findUnique(...)`.
+**Reason:** Since the storage engine had to be rewritten anyway, this was a zero-cost opportunity to give the port a cleaner interface boundary than the original — the algorithm's *behavior* is unchanged, only how it reads data internally.
+
+**Decision (no main/renderer split, so custody moves to React Context, not an IPC bridge):** `MobileAuthSession`/`MobileStore`/`BackgroundSyncRunner` are each constructed once and exposed via React Context providers (`auth-context.tsx`, `store-context.tsx`, `sync-context.tsx`), consumed directly by screens.
+**Alternatives considered:** Simulate an IPC-like boundary for consistency with Desktop's architecture.
+**Reason:** React Native is a single JS process — there is no separate main process to protect a renderer from, so an IPC-style abstraction would be complexity with no corresponding security or architectural benefit (Sustainable Complexity, Principle 8). Context providers are the idiomatic React pattern for "one shared instance, many consumers."
+
+**Decision (Detox e2e written and CI-wired, but not run, and not force-run via a workaround):** Unlike Phase 8's Electron e2e (which found a real headless-launch path in this sandbox), Detox genuinely requires an Android emulator or iOS Simulator with no headless equivalent.
+**Alternatives considered:** Skip writing the e2e spec entirely, since it can't be verified here; or claim it as "verified" based on unit-test coverage alone.
+**Reason:** Writing the spec now means it's ready the moment a real device/CI runner is available, consistent with every prior phase's Docker-dependent e2e specs. Honestly documenting it as unrun (in `18-current-state.md`, `20-known-issues.md`, `02-prd.md`'s acceptance criteria) rather than glossing over the gap or claiming false verification.
+
+**Impact:** [08-backend-guidelines.md](08-backend-guidelines.md), [12-security.md](12-security.md), [16-roadmap.md](16-roadmap.md), [20-known-issues.md](20-known-issues.md), [27-backlog.md](27-backlog.md), [adr/0008](../adr/0008-mobile-local-storage.md). **Phase:** 9.
