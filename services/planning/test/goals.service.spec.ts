@@ -47,7 +47,15 @@ describe('GoalsService', () => {
       await service.create(ownerId, projectId, { title: goal.title, description: goal.description });
       expect(projectsService.getOne).toHaveBeenCalledWith(ownerId, projectId);
       expect(prisma.goal.create).toHaveBeenCalledWith({
-        data: { projectId, ownerId, title: goal.title, description: goal.description, targetDate: undefined },
+        data: {
+          id: undefined,
+          projectId,
+          ownerId,
+          title: goal.title,
+          description: goal.description,
+          targetDate: undefined,
+          updatedAt: undefined,
+        },
       });
     });
 
@@ -55,6 +63,23 @@ describe('GoalsService', () => {
       projectsService.getOne.mockRejectedValue(new NotFoundException('Project not found'));
       await expect(service.create(ownerId, projectId, { title: goal.title })).rejects.toThrow(NotFoundException);
       expect(prisma.goal.create).not.toHaveBeenCalled();
+    });
+
+    it('passes through a client-supplied id/updatedAt when given (sync push path)', async () => {
+      prisma.goal.create.mockResolvedValue(goal);
+      const updatedAt = new Date('2026-01-02T00:00:00Z');
+      await service.create(ownerId, projectId, { title: goal.title }, { id: 'client-generated-id', updatedAt });
+      expect(prisma.goal.create).toHaveBeenCalledWith({
+        data: {
+          id: 'client-generated-id',
+          projectId,
+          ownerId,
+          title: goal.title,
+          description: undefined,
+          targetDate: undefined,
+          updatedAt,
+        },
+      });
     });
   });
 
@@ -100,7 +125,7 @@ describe('GoalsService', () => {
 
       expect(prisma.goal.update).toHaveBeenCalledWith({
         where: { id: goal.id },
-        data: { status: 'COMPLETED', completedAt: expect.any(Date) },
+        data: { status: 'COMPLETED', completedAt: expect.any(Date), version: { increment: 1 } },
       });
       expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
         ownerId,
@@ -119,6 +144,19 @@ describe('GoalsService', () => {
 
       expect(eventEmitter.emit).not.toHaveBeenCalled();
     });
+
+    it('overrides updatedAt when passed via options (sync push path)', async () => {
+      prisma.goal.findUnique.mockResolvedValue(goal);
+      prisma.goal.update.mockResolvedValue(goal);
+      const updatedAt = new Date('2026-01-03T00:00:00Z');
+
+      await service.update(ownerId, goal.id, { title: 'Synced title' }, { updatedAt });
+
+      expect(prisma.goal.update).toHaveBeenCalledWith({
+        where: { id: goal.id },
+        data: { title: 'Synced title', updatedAt, version: { increment: 1 } },
+      });
+    });
   });
 
   describe('archive', () => {
@@ -132,7 +170,10 @@ describe('GoalsService', () => {
     it('archives a goal and emits a status-changed event', async () => {
       prisma.goal.findUnique.mockResolvedValue(goal);
       await service.archive(ownerId, goal.id);
-      expect(prisma.goal.update).toHaveBeenCalledWith({ where: { id: goal.id }, data: { status: 'ARCHIVED' } });
+      expect(prisma.goal.update).toHaveBeenCalledWith({
+        where: { id: goal.id },
+        data: { status: 'ARCHIVED', version: { increment: 1 } },
+      });
       expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
         ownerId,
         goalId: goal.id,
@@ -168,7 +209,7 @@ describe('GoalsService', () => {
 
       expect(prisma.goal.update).toHaveBeenCalledWith({
         where: { id: goal.id },
-        data: { status: 'IN_PROGRESS', completedAt: null },
+        data: { status: 'IN_PROGRESS', completedAt: null, version: { increment: 1 } },
       });
       expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
         ownerId,
@@ -187,7 +228,7 @@ describe('GoalsService', () => {
 
       expect(prisma.goal.update).toHaveBeenCalledWith({
         where: { id: goal.id },
-        data: { status: 'COMPLETED', completedAt: expect.any(Date) },
+        data: { status: 'COMPLETED', completedAt: expect.any(Date), version: { increment: 1 } },
       });
       expect(eventEmitter.emit).toHaveBeenCalledWith(GOAL_STATUS_CHANGED_EVENT, {
         ownerId,

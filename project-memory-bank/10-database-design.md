@@ -23,7 +23,7 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 ## Status
 
-**Phase 4 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma`).
+**Phase 5 schema implemented, 2026-07-18** (`packages/database/prisma/schema.prisma` + `packages/local-client/prisma/schema.prisma`).
 
 ## Current tables
 
@@ -38,4 +38,17 @@ These exist so offline sync (Local-First, Principle 2) can be added later withou
 
 All tables except `ExecutionEvent` follow the `adr/0003` binding conventions (UUID PKs, `updatedAt`/`version`). `Goal`/`Task` denormalize `ownerId` directly (rather than only reachable via a join through `Project`/`Goal`) so ownership checks stay O(1), matching `Project`'s existing pattern.
 
-**No migration files exist yet** (`packages/database/prisma/migrations/` has never been generated) — `prisma migrate dev` requires a live database to diff against, and no Docker/Postgres has been available in the authoring sandbox for Phases 1-4. Once Docker is available: `npx prisma migrate dev --name init --schema packages/database/prisma/schema.prisma` (creates the first migration, covering every table at once), then `prisma migrate deploy` for CI/prod (see `.github/workflows/ci.yml`, which currently has nothing to deploy until this migration exists). Tracked in [20-known-issues.md](20-known-issues.md).
+**Phase 5 additions:** `Project`/`Goal`/`Task` each gained a composite `@@index([ownerId, updatedAt])` — the sync-pull query pattern (`WHERE ownerId = ? AND updatedAt > ?`) isn't covered by the existing single-column `ownerId` index alone. No new Postgres tables; `version` (present on these tables since Phase 1 per `adr/0003`, but never incremented by any service until now) is finally wired up as a live optimistic-concurrency guard — see [08-backend-guidelines.md](08-backend-guidelines.md).
+
+## Local client schema (`packages/local-client/prisma/schema.prisma`)
+
+A **separate** SQLite datasource — not the same Prisma client as `@pee/database` — generated to the gitignored `prisma/generated/client` so it never collides with the Postgres client in the hoisted workspace `node_modules`. Mirrors the syncable subset of the server schema:
+
+- **`LocalProject`/`LocalGoal`/`LocalTask`** — same fields as their Postgres counterparts (status/eventType stored as plain `String`, since SQLite has no native enum type). `id` is always application-supplied (`crypto.randomUUID()`), never DB-generated, so a row created offline keeps the same primary key once pushed to Postgres.
+- **`LocalExecutionEvent`** — a local cache shape exists in the schema for future use, but nothing currently populates it; `ExecutionEvent` is out of the sync protocol for Phase 5 (see [27-backlog.md](27-backlog.md)).
+- **`SyncCursor`** — one row per pull cursor (currently a single combined cursor covering all three entities).
+- **`SyncOutboxEntry`** — the local-first "outbox": every local write is recorded here until a push confirms it landed on the server. `LocalStore` collapses repeat edits to the same record into one pushed change.
+
+This schema/client pairing is what `packages/local-client` uses to prove the sync protocol against a real embedded database, not a mock — see `sync-roundtrip.e2e-spec.ts`.
+
+**No migration files exist yet** (`packages/database/prisma/migrations/` has never been generated) — `prisma migrate dev` requires a live database to diff against, and no Docker/Postgres has been available in the authoring sandbox for Phases 1-5. Once Docker is available: `npx prisma migrate dev --name init --schema packages/database/prisma/schema.prisma` (creates the first migration, covering every table at once), then `prisma migrate deploy` for CI/prod (see `.github/workflows/ci.yml`, which currently has nothing to deploy until this migration exists). Tracked in [20-known-issues.md](20-known-issues.md). This gap doesn't apply to `packages/local-client`'s SQLite schema — a single local file has no prior deployments to reconcile, so it's provisioned with `prisma db push` (schema-sync, no migration history needed) each time a fresh local store is created; see `packages/local-client/test/test-db.ts` for the pattern its tests use.

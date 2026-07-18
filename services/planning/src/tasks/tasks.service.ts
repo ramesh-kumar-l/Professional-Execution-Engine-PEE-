@@ -15,10 +15,27 @@ export class TasksService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(ownerId: string, goalId: string, dto: CreateTaskDto): Promise<TaskResponse> {
+  /**
+   * `options` is populated only by internal callers (e.g. sync push) — never bound to the
+   * public HTTP DTO, so a client can't set its own id/updatedAt through the plain REST endpoint.
+   */
+  async create(
+    ownerId: string,
+    goalId: string,
+    dto: CreateTaskDto,
+    options?: { id?: string; updatedAt?: Date },
+  ): Promise<TaskResponse> {
     await this.goalsService.getOne(ownerId, goalId);
     const task = await this.prisma.task.create({
-      data: { goalId, ownerId, title: dto.title, description: dto.description, order: dto.order ?? 0 },
+      data: {
+        id: options?.id,
+        goalId,
+        ownerId,
+        title: dto.title,
+        description: dto.description,
+        order: dto.order ?? 0,
+        updatedAt: options?.updatedAt,
+      },
     });
     await this.goalsService.recalculateProgress(goalId);
     this.eventEmitter.emit(TASK_STATUS_CHANGED_EVENT, {
@@ -65,7 +82,12 @@ export class TasksService {
     return this.toResponse(task);
   }
 
-  async update(ownerId: string, id: string, dto: UpdateTaskDto): Promise<TaskResponse> {
+  async update(
+    ownerId: string,
+    id: string,
+    dto: UpdateTaskDto,
+    options?: { updatedAt?: Date },
+  ): Promise<TaskResponse> {
     const existing = await this.findOwnedOrThrow(ownerId, id);
     const task = await this.prisma.task.update({
       where: { id },
@@ -76,6 +98,8 @@ export class TasksService {
         ...(dto.status !== undefined
           ? { status: dto.status, completedAt: dto.status === 'DONE' ? new Date() : null }
           : {}),
+        ...(options?.updatedAt !== undefined ? { updatedAt: options.updatedAt } : {}),
+        version: { increment: 1 },
       },
     });
     if (dto.status !== undefined && dto.status !== existing.status) {
@@ -96,7 +120,7 @@ export class TasksService {
     if (task.status === 'ARCHIVED') {
       return;
     }
-    await this.prisma.task.update({ where: { id }, data: { status: 'ARCHIVED' } });
+    await this.prisma.task.update({ where: { id }, data: { status: 'ARCHIVED', version: { increment: 1 } } });
     await this.goalsService.recalculateProgress(task.goalId);
     this.eventEmitter.emit(TASK_STATUS_CHANGED_EVENT, {
       ownerId,

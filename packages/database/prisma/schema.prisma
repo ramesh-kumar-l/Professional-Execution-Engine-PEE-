@@ -116,6 +116,7 @@ model Project {
   goals       Goal[]
 
   @@index([ownerId])
+  @@index([ownerId, updatedAt])
   @@map("projects")
 }
 
@@ -138,6 +139,7 @@ model Goal {
 
   @@index([projectId])
   @@index([ownerId])
+  @@index([ownerId, updatedAt])
   @@map("goals")
 }
 
@@ -160,6 +162,7 @@ model Task {
 
   @@index([goalId])
   @@index([ownerId])
+  @@index([ownerId, updatedAt])
   @@map("tasks")
 }
 

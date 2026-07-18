@@ -37,10 +37,25 @@ describe('ProjectsService', () => {
       prisma.project.create.mockResolvedValue(project);
       const result = await service.create(ownerId, { name: project.name, description: project.description });
       expect(prisma.project.create).toHaveBeenCalledWith({
-        data: { ownerId, name: project.name, description: project.description },
+        data: {
+          id: undefined,
+          ownerId,
+          name: project.name,
+          description: project.description,
+          updatedAt: undefined,
+        },
       });
       expect(result.id).toBe(project.id);
       expect(result.ownerId).toBe(ownerId);
+    });
+
+    it('passes through a client-supplied id/updatedAt when given (sync push path)', async () => {
+      prisma.project.create.mockResolvedValue(project);
+      const updatedAt = new Date('2026-01-02T00:00:00Z');
+      await service.create(ownerId, { name: project.name }, { id: 'client-generated-id', updatedAt });
+      expect(prisma.project.create).toHaveBeenCalledWith({
+        data: { id: 'client-generated-id', ownerId, name: project.name, description: undefined, updatedAt },
+      });
     });
   });
 
@@ -108,7 +123,7 @@ describe('ProjectsService', () => {
 
       expect(prisma.project.update).toHaveBeenCalledWith({
         where: { id: project.id },
-        data: { name: 'New name' },
+        data: { name: 'New name', version: { increment: 1 } },
       });
     });
 
@@ -120,7 +135,20 @@ describe('ProjectsService', () => {
 
       expect(prisma.project.update).toHaveBeenCalledWith({
         where: { id: project.id },
-        data: { status: 'ARCHIVED', archivedAt: expect.any(Date) },
+        data: { status: 'ARCHIVED', archivedAt: expect.any(Date), version: { increment: 1 } },
+      });
+    });
+
+    it('overrides updatedAt when passed via options (sync push path)', async () => {
+      prisma.project.findUnique.mockResolvedValue(project);
+      prisma.project.update.mockResolvedValue(project);
+      const updatedAt = new Date('2026-01-03T00:00:00Z');
+
+      await service.update(ownerId, project.id, { name: 'Synced name' }, { updatedAt });
+
+      expect(prisma.project.update).toHaveBeenCalledWith({
+        where: { id: project.id },
+        data: { name: 'Synced name', updatedAt, version: { increment: 1 } },
       });
     });
   });
@@ -137,7 +165,7 @@ describe('ProjectsService', () => {
       await service.archive(ownerId, project.id);
       expect(prisma.project.update).toHaveBeenCalledWith({
         where: { id: project.id },
-        data: { status: 'ARCHIVED', archivedAt: expect.any(Date) },
+        data: { status: 'ARCHIVED', archivedAt: expect.any(Date), version: { increment: 1 } },
       });
     });
 

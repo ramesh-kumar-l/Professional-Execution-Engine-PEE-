@@ -1,0 +1,94 @@
+// SQLite datasource for the local-first client — mirrors the syncable subset of the Postgres
+// schema (packages/database/prisma/schema.prisma), see adr/0003 and Phase 5's sync protocol.
+generator client {
+  provider = "prisma-client-js"
+  output   = "./generated/client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("LOCAL_DATABASE_URL")
+}
+
+// Ids are always supplied by application code (crypto.randomUUID()) at insert time — never
+// DB-generated — so a row created offline keeps the same primary key once synced to Postgres.
+model LocalProject {
+  id          String    @id
+  ownerId     String
+  name        String
+  description String?
+  status      String
+  updatedAt   DateTime
+  version     Int
+
+  @@index([ownerId])
+  @@map("local_projects")
+}
+
+model LocalGoal {
+  id          String    @id
+  ownerId     String
+  projectId   String
+  title       String
+  description String?
+  targetDate  DateTime?
+  status      String
+  updatedAt   DateTime
+  version     Int
+
+  @@index([ownerId])
+  @@index([projectId])
+  @@map("local_goals")
+}
+
+model LocalTask {
+  id          String   @id
+  ownerId     String
+  goalId      String
+  title       String
+  description String?
+  order       Int
+  status      String
+  updatedAt   DateTime
+  version     Int
+
+  @@index([ownerId])
+  @@index([goalId])
+  @@map("local_tasks")
+}
+
+// Pull-only cache — never edited locally, so it carries no version/outbox bookkeeping.
+model LocalExecutionEvent {
+  id         String   @id
+  ownerId    String
+  goalId     String?
+  taskId     String?
+  eventType  String
+  fromStatus String?
+  toStatus   String?
+  createdAt  DateTime
+
+  @@index([ownerId])
+  @@map("local_execution_events")
+}
+
+// One row per syncable entity, tracking how far this local store has pulled.
+model SyncCursor {
+  entity String @id
+  cursor String
+
+  @@map("sync_cursors")
+}
+
+// The local-first "outbox": every local write is recorded here until push confirms it landed
+// on the server. Without this, an offline write has no record of needing to sync later.
+model SyncOutboxEntry {
+  id        String    @id @default(uuid())
+  entity    String
+  recordId  String
+  createdAt DateTime  @default(now())
+  pushedAt  DateTime?
+
+  @@index([entity, pushedAt])
+  @@map("sync_outbox_entries")
+}

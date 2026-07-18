@@ -48,6 +48,9 @@ jobs:
       - name: Generate Prisma client
         run: npm run prisma:generate
 
+      - name: Generate local-client SQLite Prisma client
+        run: npm run prisma:generate -w @pee/local-client
+
       - name: Apply database migrations
         run: npx prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
@@ -71,6 +74,12 @@ jobs:
 
       - name: Execution service e2e tests
         run: npm run test:e2e -w @pee/execution
+
+      - name: Sync service e2e tests
+        run: npm run test:e2e -w @pee/sync
+
+      - name: Local-client e2e tests (SQLite <-> Postgres round trip)
+        run: npm run test:e2e -w @pee/local-client
 
       - name: Build
         run: npm run build

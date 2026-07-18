@@ -12,7 +12,7 @@ The API is served by the NestJS `api` module ([adr/0002](../adr/0002-backend-lan
 
 ## Status
 
-**Phase 4 endpoints live, 2026-07-18.**
+**Phase 5 endpoints live, 2026-07-18.**
 
 ## Current endpoints (`/services/auth`)
 
@@ -64,6 +64,15 @@ All `/goals/*` and `/tasks/*` routes are `JwtAuthGuard`-protected. **Closed-loop
 | GET | `/execution/active` | access token (Bearer) | Every currently-open `TaskExecutionSession` for the caller, across every project/goal — the end-to-end "what's running right now" view. |
 
 **Events are unconditional, not tied to the start/complete endpoints:** `@pee/planning`'s `TasksService`/`GoalsService` emit `task.status_changed`/`goal.status_changed` (via `@nestjs/event-emitter`) on *every* status-changing path, including the pre-existing generic `PATCH /tasks/:id` and `PATCH /goals/:id`. `@pee/execution` listens and persists an `ExecutionEvent` row regardless of which endpoint caused the change — a client can never bypass the activity log. Only the *time-tracking* session is opt-in (only created via the dedicated start/complete endpoints).
+
+## Current endpoints (`/services/sync`)
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| POST | `/sync/pull` | access token (Bearer) | Body `{ since?: ISO timestamp }`. Returns `{ changes, cursor, hasMore }` — every `Project`/`Goal`/`Task` row owned by the caller with `updatedAt > since`, capped at 500 per entity; `hasMore` signals another page. Omit `since` to pull everything. |
+| POST | `/sync/push` | access token (Bearer) | Body `{ changes: [{ entity, id, data, clientUpdatedAt, clientVersion }] }` (max 500 per call). Returns one result per change: `applied`, `conflict` (with `serverRecord` — the server's current row, to overwrite the caller's stale local copy), or `rejected` (with `reason`). |
+
+**This is the local-first sync protocol `adr/0003` deferred** — the first real SQLite↔Postgres reconciliation, not a stub. `ExecutionEvent` is intentionally not part of this contract (it's pull-only by nature and already served by `/goals/:goalId/activity`); only `Project`/`Goal`/`Task` are syncable. See [08-backend-guidelines.md](08-backend-guidelines.md) for the conflict-resolution mechanics (optimistic-lock version guard, last-write-wins by timestamp) and `packages/local-client` for the reference SQLite client that exercises this contract.
 
 ## Token custody (BFF pattern)
 

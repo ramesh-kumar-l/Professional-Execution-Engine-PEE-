@@ -1,6 +1,6 @@
 # 02 — Product Requirements Document
 
-**Status: Phase 4 (Execution Engine) written and implemented, 2026-07-18.**
+**Status: Phase 5 (Memory Engine) written and implemented, 2026-07-18.**
 
 ## Phase 1 — Authentication
 
@@ -99,6 +99,32 @@
   - [x] Every new/edited file stays under ~300 lines (largest new file is `execution-events.service.ts` at 122 lines)
   - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-3)
   - [ ] Multi-pause/resume sessions, cross-service distributed tracing — explicitly deferred, see [27-backlog.md](27-backlog.md)
+
+## Phase 5 — Memory Engine
+
+- **Objective:** Design and implement the first real local-first sync protocol — SQLite (local, per-device) ↔ PostgreSQL (server, source of truth) — that `adr/0003` fixed the storage pairing for but deliberately deferred the reconciliation mechanics of. This is the storage substrate later phases (offline UI, AI context) read from as the system's durable record of the user's work.
+- **Current state:** Every table has had client-generated-UUID PKs and `updatedAt`/`version` columns since Phase 1 (per `adr/0003`), but no code ever used `version` for anything, and no sync endpoint existed. `apps/web` is 100% server-rendered with zero client-side storage.
+- **Desired state:** A generic, registry-driven sync module (`services/sync`) supporting bidirectional reconciliation for `Project`/`Goal`/`Task`, using an atomic optimistic-lock version guard with a last-write-wins-by-timestamp fallback; a reusable reference SQLite client (`packages/local-client`) that proves the protocol end-to-end against a real embedded database.
+- **Required APIs:** `POST /sync/pull`, `POST /sync/push` — see [11-api-contract.md](11-api-contract.md).
+- **Database impact:** Composite `[ownerId, updatedAt]` index added to `Project`/`Goal`/`Task`; `version` wired up as a live increment on every write. A wholly separate SQLite Prisma schema in `packages/local-client` (`LocalProject`/`LocalGoal`/`LocalTask`/`LocalExecutionEvent`/`SyncCursor`/`SyncOutboxEntry`) — see [10-database-design.md](10-database-design.md).
+- **UI impact:** None — `apps/web` is deliberately untouched this phase (see Security considerations). `packages/local-client` has no UI; it's a library.
+- **AI impact:** None directly, but this is the persistence substrate Phase 6+ AI features may eventually read from for "what has the user actually done" context.
+- **Testing strategy:** Unit (`SyncPullService`/`SyncPushService`, mocked Prisma + mocked domain services; `LocalStore`/`SyncClient` against a real, ephemeral, temp-file SQLite database — no Docker needed for either), extended `@pee/projects`/`@pee/planning` specs (id/updatedAt passthrough, version-increment assertions), integration/e2e (`services/sync/test/sync.e2e-spec.ts` and `packages/local-client/test/sync-roundtrip.e2e-spec.ts`, both requiring Docker Postgres — the latter's SQLite half needs no infra at all).
+- **Migration requirements:** Adds two indexes to the existing Postgres schema; same unresolved Docker-dependent no-migration-ever-generated gap carried forward from Phases 1-4. `packages/local-client`'s SQLite schema needs no migration history — each local file is provisioned fresh via `prisma db push`.
+- **Observability impact:** None new server-side — sync push reuses the existing domain services for writes specifically so the Phase 3 rollup and Phase 4 `ExecutionEvent` log keep firing for synced changes; sync is not a separate, unaudited write path.
+- **Security considerations:** No new authz model — `JwtAuthGuard` on every route; push always forces `ownerId` from the authenticated caller, never trusts it from the payload; a push targeting another owner's row is rejected the same 404-shaped way as every other cross-owner access. Per-entity payload validated twice (outer DTO shape, then a `whitelist`/`forbidNonWhitelisted` check against the specific entity's own fields) so a client can't smuggle an unexpected field through the generic `data` blob. `apps/web` was confirmed (via exploration) to be 100% server-rendered with zero client-side fetch/storage — retrofitting real browser offline support now would be a disproportionate rewrite of tested Phase 1-4 UI; the user confirmed building a reusable reference client instead, deferring the web retrofit to Phase 8/9 — see [12-security.md](12-security.md).
+- **Documentation updates:** This entry, `08-backend-guidelines.md`, `10-database-design.md`, `11-api-contract.md`, `12-security.md`, `21-decision-log.md`, `27-backlog.md`.
+- **Acceptance criteria:**
+  - [x] `POST /sync/pull`/`POST /sync/push` implemented, bidirectional for `Project`/`Goal`/`Task`
+  - [x] Optimistic-lock version guard + last-write-wins-by-timestamp conflict resolution implemented and tested (both directions)
+  - [x] Sync push reuses domain services for writes, so rollup/event side effects keep firing for synced changes
+  - [x] `packages/local-client` reference SQLite client (`LocalStore` + `SyncClient`) implemented and proven against a real embedded database
+  - [x] Unit tests passing (28 in `@pee/sync`, 13 in `@pee/local-client`, plus new assertions in `@pee/projects`/`@pee/planning` — 148 total across the workspace)
+  - [x] Integration/e2e tests written (require Docker Postgres — not run in the authoring sandbox, wired into CI)
+  - [x] `npm run build`, `npm run typecheck`, `npm run lint` clean across the workspace
+  - [x] Every new/edited file stays under ~300 lines (largest new file is `local-store.ts` at 159 lines)
+  - [ ] No initial Prisma migration generated yet — requires Docker (carried forward from Phases 1-4)
+  - [ ] `apps/web` browser-side offline support, `ExecutionEvent`/`TaskExecutionSession` sync coverage, local-file-at-rest encryption, richer multi-device conflict resolution — explicitly deferred, see [27-backlog.md](27-backlog.md)
 
 ## What belongs here once written
 

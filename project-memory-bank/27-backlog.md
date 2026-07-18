@@ -99,6 +99,34 @@ Priority: Medium.
 Potential dependencies: None blocking; could reuse `ExecutionEvent`'s shape or a separate generic `AuditLog` table.
 Estimated value: Full traceability (not just status changes) for support/compliance once real users' data is at stake.
 
+### In-browser offline support for `apps/web`
+Description: Retrofit the Next.js frontend itself with real client-side storage (e.g. WASM SQLite + IndexedDB persistence) so the web app is genuinely offline-capable, not just the backend protocol.
+Reason: `apps/web` is 100% server-rendered (Server Components + Server Actions, BFF pattern) with zero client-side data fetching today; Phase 5 deliberately built the sync protocol and a reusable SQLite reference client (`packages/local-client`) without rewriting the web app's rendering architecture — that's squarely Phase 8 (Desktop) and Phase 9 (Mobile)'s job, where a native/embedded SQLite binding fits naturally.
+Priority: Low — no current feature needs it; revisit when Phase 8/9 scoping begins.
+Potential dependencies: `packages/local-client` (already built, ready to be consumed).
+Estimated value: True Local-First (Principle 2) compliance for the web product itself.
+
+### Sync coverage for `ExecutionEvent` and `TaskExecutionSession`
+Description: Extend the sync protocol (`services/sync`) to pull-cache `ExecutionEvent` rows and, separately, decide what cross-device semantics (if any) make sense for an in-progress `TaskExecutionSession`.
+Reason: Descoped from Phase 5 to keep the entity registry uniformly bidirectional (3 entries, not a mixed shape); `ExecutionEvent` is already served online by `GET /goals/:goalId/activity`, and session timers are inherently server-driven with unclear cross-device meaning (does starting a task on one device end an open session on another?).
+Priority: Low — no offline UI exists yet to consume either.
+Potential dependencies: A concrete offline-UI feature that needs the activity timeline or active-session view while disconnected.
+Estimated value: Full-fidelity offline experience once a real offline UI exists.
+
+### Encrypt `packages/local-client`'s SQLite file at rest
+Description: Add at-rest encryption (e.g. SQLCipher) to the local SQLite database file.
+Reason: Currently plain-text on disk; acceptable for a backend-only reference client with no shipped end-user surface yet, but a real gap once Phase 8 (Desktop) ships this file to end-user machines, where device loss/theft is a realistic threat model.
+Priority: Medium — revisit before, not during, Phase 8.
+Potential dependencies: An SQLCipher-compatible Prisma driver or adapter (needs research — not confirmed available today).
+Estimated value: Protects offline data on lost/stolen devices.
+
+### Multi-device conflict resolution beyond simple last-write-wins
+Description: Handle more than two concurrent writers to the same row more richly than "whoever's wall clock is newer wins" (e.g. field-level merge, user-facing conflict resolution UI).
+Reason: Phase 5's LWW-by-timestamp is proportional to the current single-device-at-a-time usage pattern (Sustainable Complexity); a genuine multi-device power user editing the same row from two devices within the same minute is an edge case with no reported need yet.
+Priority: Low.
+Potential dependencies: Telemetry showing real conflict frequency, to justify the added complexity.
+Estimated value: Fewer surprised "my edit disappeared" moments for genuinely concurrent multi-device users.
+
 ### Dependency upgrade: Nest 11 / Next 16
 Description: `npm audit` (2026-07-17) flags advisories in the NestJS 10.x/Express chain and Next.js 14.x that only clear via a major-version bump.
 Reason: Deliberately not force-upgraded mid-Phase-1 to avoid pulling in untested majors without dedicated regression testing. See [20-known-issues.md](20-known-issues.md), [21-decision-log.md](21-decision-log.md).

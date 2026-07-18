@@ -9,9 +9,23 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(ownerId: string, dto: CreateProjectDto): Promise<ProjectResponse> {
+  /**
+   * `options` is populated only by internal callers (e.g. sync push) — never bound to the
+   * public HTTP DTO, so a client can't set its own id/updatedAt through the plain REST endpoint.
+   */
+  async create(
+    ownerId: string,
+    dto: CreateProjectDto,
+    options?: { id?: string; updatedAt?: Date },
+  ): Promise<ProjectResponse> {
     const project = await this.prisma.project.create({
-      data: { ownerId, name: dto.name, description: dto.description },
+      data: {
+        id: options?.id,
+        ownerId,
+        name: dto.name,
+        description: dto.description,
+        updatedAt: options?.updatedAt,
+      },
     });
     return this.toResponse(project);
   }
@@ -49,7 +63,12 @@ export class ProjectsService {
     return this.toResponse(project);
   }
 
-  async update(ownerId: string, id: string, dto: UpdateProjectDto): Promise<ProjectResponse> {
+  async update(
+    ownerId: string,
+    id: string,
+    dto: UpdateProjectDto,
+    options?: { updatedAt?: Date },
+  ): Promise<ProjectResponse> {
     await this.findOwnedOrThrow(ownerId, id);
     const project = await this.prisma.project.update({
       where: { id },
@@ -59,6 +78,8 @@ export class ProjectsService {
         ...(dto.status !== undefined
           ? { status: dto.status, archivedAt: dto.status === 'ARCHIVED' ? new Date() : null }
           : {}),
+        ...(options?.updatedAt !== undefined ? { updatedAt: options.updatedAt } : {}),
+        version: { increment: 1 },
       },
     });
     return this.toResponse(project);
@@ -71,7 +92,7 @@ export class ProjectsService {
     }
     await this.prisma.project.update({
       where: { id },
-      data: { status: 'ARCHIVED', archivedAt: new Date() },
+      data: { status: 'ARCHIVED', archivedAt: new Date(), version: { increment: 1 } },
     });
   }
 

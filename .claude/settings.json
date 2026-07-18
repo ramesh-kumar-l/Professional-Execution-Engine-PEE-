@@ -3,7 +3,14 @@
     "allow": [
       "Bash(xargs wc -l)",
       "Bash(npm audit *)",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(LOCAL_DATABASE_URL=\"file:./dev.db\" npx prisma generate)",
+      "Bash(unset LOCAL_DATABASE_URL)",
+      "Bash(npx prisma *)",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(git -C /d/ClaudeProjects/Professional-Execution-Engine-PEE- check-ignore -v \"packages/local-client/prisma/generated/client/index.js\")",
+      "Bash(git add *)"
     ]
   }
 }

@@ -4,9 +4,9 @@
 
 ## Current phase
 
-**Phase 4 — Execution Engine. Complete (2026-07-18).**
+**Phase 5 — Memory Engine. Complete (2026-07-18).**
 
-Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), and Phase 3 (Planning Engine) are complete. Phase 4 is implemented: `services/execution` (NestJS module, `TaskExecutionSession` start/stop timer + append-only `ExecutionEvent` log, connected to `@pee/planning` via `@nestjs/event-emitter` rather than a direct module dependency), `packages/database` (`TaskExecutionSession`/`ExecutionEvent` tables added), `packages/types` (execution DTOs + shared event payload types added), `apps/web` (Start/Complete controls + activity timeline on the goal detail page, new global `/dashboard/execution` "Active Work" dashboard). See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
+Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication), Phase 2 (Projects), Phase 3 (Planning Engine), and Phase 4 (Execution Engine) are complete. Phase 5 is implemented: `services/sync` (NestJS module — `POST /sync/pull`/`POST /sync/push`, optimistic-lock version guard + last-write-wins-by-timestamp conflict resolution, bidirectional for `Project`/`Goal`/`Task`), `packages/local-client` (a reusable SQLite-backed reference client — `LocalStore` + `SyncClient` — proving the protocol against a real embedded database, not a mock), `packages/database` (composite `[ownerId, updatedAt]` indexes, `version` finally wired up as a live optimistic-concurrency guard on every write). This is `adr/0003`'s deferred sync protocol, designed and working. See [02-prd.md](02-prd.md) for the feature spec and acceptance criteria.
 
 ## Group status
 
@@ -98,8 +98,23 @@ Phase 0 (EOS bootstrap), Phase 0.5 (architecture ADRs), Phase 1 (Authentication)
 | Every new/edited file under ~300 lines | Done (largest new file: `execution-events.service.ts`, 122 lines) |
 | Memory-bank documentation sweep | Done |
 
+## Phase 5 — Memory Engine
+
+| Deliverable | Status |
+|---|---|
+| Composite `[ownerId, updatedAt]` indexes on `Project`/`Goal`/`Task`; `version` wired up as a live increment on every write | Done |
+| Shared sync types (`packages/types`) | Done |
+| `services/sync` (`POST /sync/pull`, `POST /sync/push`; registry-driven across the 3 bidirectional entities; version-guard + last-write-wins conflict resolution) | Done |
+| `services/api` wiring (`SyncModule` imported) | Done |
+| `packages/local-client` (SQLite Prisma schema, `LocalStore`, `SyncClient`) | Done |
+| Unit tests (28 in `@pee/sync`, 13 in `@pee/local-client`, plus new create/update assertions in `@pee/projects`/`@pee/planning` specs — 148 total across the workspace) | Done |
+| Integration/e2e tests (`services/sync/test/sync.e2e-spec.ts`, `packages/local-client/test/sync-roundtrip.e2e-spec.ts` — Docker Postgres required for the server half; the SQLite half needs no infra) | Written, wired into CI — not run in authoring sandbox (no Docker there) |
+| `npm run build` / `typecheck` / `lint` clean | Done |
+| Every new/edited file under ~300 lines | Done (largest new file: `local-store.ts`, 159 lines) |
+| Memory-bank documentation sweep | Done |
+
 ## Next phase
 
-Phase 0, 0.5, 1, 2, 3, and 4 are done. **Phase 5 — Memory Engine** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
+Phase 0, 0.5, 1, 2, 3, 4, and 5 are done. **Phase 6 — AI Integration** is next, once scoped (`16-roadmap.md`). Before then: generate and apply the first Prisma migration and run the Docker-dependent e2e suites at least once — see [20-known-issues.md](20-known-issues.md).
 
 Detail: [18-current-state.md](18-current-state.md), [19-active-work.md](19-active-work.md), [29-next-task.md](29-next-task.md).

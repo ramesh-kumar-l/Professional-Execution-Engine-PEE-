@@ -47,7 +47,7 @@ describe('TasksService', () => {
 
       expect(goalsService.getOne).toHaveBeenCalledWith(ownerId, goalId);
       expect(prisma.task.create).toHaveBeenCalledWith({
-        data: { goalId, ownerId, title: task.title, description: undefined, order: 0 },
+        data: { id: undefined, goalId, ownerId, title: task.title, description: undefined, order: 0, updatedAt: undefined },
       });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
       expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
@@ -63,6 +63,15 @@ describe('TasksService', () => {
       goalsService.getOne.mockRejectedValue(new NotFoundException('Goal not found'));
       await expect(service.create(ownerId, goalId, { title: task.title })).rejects.toThrow(NotFoundException);
       expect(prisma.task.create).not.toHaveBeenCalled();
+    });
+
+    it('passes through a client-supplied id/updatedAt when given (sync push path)', async () => {
+      prisma.task.create.mockResolvedValue(task);
+      const updatedAt = new Date('2026-01-02T00:00:00Z');
+      await service.create(ownerId, goalId, { title: task.title }, { id: 'client-generated-id', updatedAt });
+      expect(prisma.task.create).toHaveBeenCalledWith({
+        data: { id: 'client-generated-id', goalId, ownerId, title: task.title, description: undefined, order: 0, updatedAt },
+      });
     });
   });
 
@@ -89,9 +98,25 @@ describe('TasksService', () => {
 
       await service.update(ownerId, task.id, { title: 'Renamed' });
 
-      expect(prisma.task.update).toHaveBeenCalledWith({ where: { id: task.id }, data: { title: 'Renamed' } });
+      expect(prisma.task.update).toHaveBeenCalledWith({
+        where: { id: task.id },
+        data: { title: 'Renamed', version: { increment: 1 } },
+      });
       expect(goalsService.recalculateProgress).not.toHaveBeenCalled();
       expect(eventEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    it('overrides updatedAt when passed via options (sync push path)', async () => {
+      prisma.task.findUnique.mockResolvedValue(task);
+      prisma.task.update.mockResolvedValue(task);
+      const updatedAt = new Date('2026-01-03T00:00:00Z');
+
+      await service.update(ownerId, task.id, { title: 'Synced title' }, { updatedAt });
+
+      expect(prisma.task.update).toHaveBeenCalledWith({
+        where: { id: task.id },
+        data: { title: 'Synced title', updatedAt, version: { increment: 1 } },
+      });
     });
 
     it('does not recalculate or emit when status is re-sent unchanged', async () => {
@@ -112,7 +137,7 @@ describe('TasksService', () => {
 
       expect(prisma.task.update).toHaveBeenCalledWith({
         where: { id: task.id },
-        data: { status: 'DONE', completedAt: expect.any(Date) },
+        data: { status: 'DONE', completedAt: expect.any(Date), version: { increment: 1 } },
       });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
       expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
@@ -142,7 +167,10 @@ describe('TasksService', () => {
     it('archives a task and recalculates the parent goal', async () => {
       prisma.task.findUnique.mockResolvedValue(task);
       await service.archive(ownerId, task.id);
-      expect(prisma.task.update).toHaveBeenCalledWith({ where: { id: task.id }, data: { status: 'ARCHIVED' } });
+      expect(prisma.task.update).toHaveBeenCalledWith({
+        where: { id: task.id },
+        data: { status: 'ARCHIVED', version: { increment: 1 } },
+      });
       expect(goalsService.recalculateProgress).toHaveBeenCalledWith(goalId);
       expect(eventEmitter.emit).toHaveBeenCalledWith(TASK_STATUS_CHANGED_EVENT, {
         ownerId,

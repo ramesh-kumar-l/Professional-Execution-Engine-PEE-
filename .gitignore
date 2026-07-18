@@ -9,7 +9,9 @@ coverage/
 !.env.example
 .DS_Store
 Thumbs.db
-prisma/generated/
+**/prisma/generated/
+*.db
+*.db-journal
 test-results/
 playwright-report/
 .turbo/

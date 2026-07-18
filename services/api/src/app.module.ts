@@ -8,6 +8,7 @@ import { PrismaModule } from '@pee/database';
 import { ExecutionModule } from '@pee/execution';
 import { PlanningModule } from '@pee/planning';
 import { ProjectsModule } from '@pee/projects';
+import { SyncModule } from '@pee/sync';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -20,6 +21,7 @@ import { HealthController } from './health.controller';
     ProjectsModule,
     PlanningModule,
     ExecutionModule,
+    SyncModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

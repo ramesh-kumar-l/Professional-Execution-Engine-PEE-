@@ -21,15 +21,26 @@ export class GoalsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(ownerId: string, projectId: string, dto: CreateGoalDto): Promise<GoalResponse> {
+  /**
+   * `options` is populated only by internal callers (e.g. sync push) — never bound to the
+   * public HTTP DTO, so a client can't set its own id/updatedAt through the plain REST endpoint.
+   */
+  async create(
+    ownerId: string,
+    projectId: string,
+    dto: CreateGoalDto,
+    options?: { id?: string; updatedAt?: Date },
+  ): Promise<GoalResponse> {
     await this.projectsService.getOne(ownerId, projectId);
     const goal = await this.prisma.goal.create({
       data: {
+        id: options?.id,
         projectId,
         ownerId,
         title: dto.title,
         description: dto.description,
         targetDate: dto.targetDate ? new Date(dto.targetDate) : undefined,
+        updatedAt: options?.updatedAt,
       },
     });
     return this.toResponse(goal);
@@ -74,7 +85,12 @@ export class GoalsService {
     return this.toResponse(goal);
   }
 
-  async update(ownerId: string, id: string, dto: UpdateGoalDto): Promise<GoalResponse> {
+  async update(
+    ownerId: string,
+    id: string,
+    dto: UpdateGoalDto,
+    options?: { updatedAt?: Date },
+  ): Promise<GoalResponse> {
     const existing = await this.findOwnedOrThrow(ownerId, id);
     const goal = await this.prisma.goal.update({
       where: { id },
@@ -85,6 +101,8 @@ export class GoalsService {
         ...(dto.status !== undefined
           ? { status: dto.status, completedAt: dto.status === 'COMPLETED' ? new Date() : null }
           : {}),
+        ...(options?.updatedAt !== undefined ? { updatedAt: options.updatedAt } : {}),
+        version: { increment: 1 },
       },
     });
     if (dto.status !== undefined && dto.status !== existing.status) {
@@ -104,7 +122,7 @@ export class GoalsService {
     if (goal.status === 'ARCHIVED') {
       return;
     }
-    await this.prisma.goal.update({ where: { id }, data: { status: 'ARCHIVED' } });
+    await this.prisma.goal.update({ where: { id }, data: { status: 'ARCHIVED', version: { increment: 1 } } });
     this.eventEmitter.emit(GOAL_STATUS_CHANGED_EVENT, {
       ownerId,
       goalId: id,
@@ -135,7 +153,11 @@ export class GoalsService {
     }
     await this.prisma.goal.update({
       where: { id: goalId },
-      data: { status: targetStatus, completedAt: targetStatus === 'COMPLETED' ? new Date() : null },
+      data: {
+        status: targetStatus,
+        completedAt: targetStatus === 'COMPLETED' ? new Date() : null,
+        version: { increment: 1 },
+      },
     });
     this.eventEmitter.emit(GOAL_STATUS_CHANGED_EVENT, {
       ownerId: goal.ownerId,
